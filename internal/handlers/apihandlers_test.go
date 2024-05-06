@@ -59,6 +59,7 @@ func TestApiHandler(t *testing.T) {
 			result := w.Result()
 			assert.Equal(t, tt.want.statusCode, result.StatusCode)
 			assert.EqualValues(t, tt.want.storage, tt.storage)
+			_ = result.Body.Close()
 		})
 	}
 }

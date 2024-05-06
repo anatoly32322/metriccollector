@@ -11,6 +11,7 @@ func ServeUpdateHandler(memStorage *st.MemStorage) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusMethodNotAllowed)
+
 			return
 		}
 
@@ -25,6 +26,7 @@ func ServeUpdateHandler(memStorage *st.MemStorage) http.HandlerFunc {
 
 		if len(pathParts) != 5 {
 			w.WriteHeader(http.StatusNotFound)
+
 			return
 		}
 		metricType := pathParts[2]
@@ -35,8 +37,8 @@ func ServeUpdateHandler(memStorage *st.MemStorage) http.HandlerFunc {
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			_, _ = w.Write([]byte(err.Error()))
+
 			return
 		}
-		return
 	}
 }
