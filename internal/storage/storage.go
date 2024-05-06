@@ -16,16 +16,16 @@ type CounterMetric struct {
 }
 
 type MemStorage struct {
-	gaugeMetrics       GaugeMetric
-	counterMetrics     []CounterMetric
-	acceptedMetricType map[string]bool
+	GaugeMetrics       GaugeMetric
+	CounterMetrics     []CounterMetric
+	AcceptedMetricType map[string]bool
 }
 
 func NewMemStorage() *MemStorage {
 	return &MemStorage{
-		gaugeMetrics:   GaugeMetric{},
-		counterMetrics: make([]CounterMetric, 0),
-		acceptedMetricType: map[string]bool{
+		GaugeMetrics:   GaugeMetric{},
+		CounterMetrics: make([]CounterMetric, 0),
+		AcceptedMetricType: map[string]bool{
 			"gauge":   true,
 			"counter": true,
 		},
@@ -33,7 +33,7 @@ func NewMemStorage() *MemStorage {
 }
 
 func (s *MemStorage) Update(metricType, metricName, value string) error {
-	if !s.acceptedMetricType[metricType] {
+	if !s.AcceptedMetricType[metricType] {
 		return fmt.Errorf("metric type %s not accepted", metricType)
 	}
 	switch metricType {
@@ -42,13 +42,13 @@ func (s *MemStorage) Update(metricType, metricName, value string) error {
 		if err != nil {
 			return err
 		}
-		s.gaugeMetrics = GaugeMetric{metricName, floatValue}
+		s.GaugeMetrics = GaugeMetric{metricName, floatValue}
 	case "counter":
 		intValue, err := strconv.ParseInt(value, 10, 64)
 		if err != nil {
 			return err
 		}
-		s.counterMetrics = append(s.counterMetrics, CounterMetric{metricName, intValue})
+		s.CounterMetrics = append(s.CounterMetrics, CounterMetric{metricName, intValue})
 	default:
 		return fmt.Errorf("unknown metric type: %s", metricType)
 	}
