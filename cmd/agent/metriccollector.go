@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math/rand/v2"
 	"runtime"
 	"strconv"
 )
@@ -37,5 +38,6 @@ func collectMetrics() map[string]string {
 	metrics["Sys"] = strconv.FormatUint(m.Sys, 10)
 	metrics["TotalAlloc"] = strconv.FormatUint(m.TotalAlloc, 10)
 
+	metrics["GCCPUFraction"] = strconv.FormatFloat(rand.Float64(), 'f', 6, 64)
 	return metrics
 }

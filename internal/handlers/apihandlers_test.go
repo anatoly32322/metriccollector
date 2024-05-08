@@ -12,13 +12,13 @@ func TestApiHandler(t *testing.T) {
 	type want struct {
 		contentType string
 		statusCode  int
-		storage     st.MemStorage
+		storage     *st.MemStorage
 	}
 
 	tests := []struct {
 		name    string
 		request string
-		storage st.MemStorage
+		storage *st.MemStorage
 		want    want
 	}{
 		{
@@ -26,9 +26,9 @@ func TestApiHandler(t *testing.T) {
 			want: want{
 				contentType: "text/plain",
 				statusCode:  200,
-				storage: st.MemStorage{
-					GaugeMetrics:   st.GaugeMetric{Name: "Alloc", Value: 1.2},
-					CounterMetrics: make([]st.CounterMetric, 0),
+				storage: &st.MemStorage{
+					GaugeMetrics:   map[string]float64{"Alloc": 1.2},
+					CounterMetrics: make(map[string][]int64),
 					AcceptedMetricType: map[string]bool{
 						"gauge":   true,
 						"counter": true,
@@ -36,9 +36,9 @@ func TestApiHandler(t *testing.T) {
 				},
 			},
 			request: "/update/gauge/Alloc/1.2",
-			storage: st.MemStorage{
-				GaugeMetrics:   st.GaugeMetric{},
-				CounterMetrics: make([]st.CounterMetric, 0),
+			storage: &st.MemStorage{
+				GaugeMetrics:   make(map[string]float64),
+				CounterMetrics: make(map[string][]int64),
 				AcceptedMetricType: map[string]bool{
 					"gauge":   true,
 					"counter": true,
@@ -49,17 +49,19 @@ func TestApiHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			ts := httptest.NewServer(MetricRouter(tt.storage))
+			defer ts.Close()
+
 			request := httptest.NewRequest(http.MethodPost, tt.request, nil)
-			w := httptest.NewRecorder()
-			h := ServeUpdateHandler(&tt.storage)
-			request.Header.Add("Content-Type", "text/plain")
 
-			h(w, request)
+			resp, err := ts.Client().Do(request)
+			if err != nil {
+				return
+			}
 
-			result := w.Result()
-			assert.Equal(t, tt.want.statusCode, result.StatusCode)
+			assert.Equal(t, tt.want.statusCode, resp.StatusCode)
 			assert.EqualValues(t, tt.want.storage, tt.storage)
-			_ = result.Body.Close()
+			_ = resp.Body.Close()
 		})
 	}
 }

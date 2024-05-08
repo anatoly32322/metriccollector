@@ -1,38 +1,30 @@
 package apihandlers
 
 import (
+	"fmt"
 	st "github.com/anatoly32322/metriccollector/internal/storage"
-	"log"
+	"github.com/go-chi/chi/v5"
+	log "github.com/sirupsen/logrus"
 	"net/http"
-	"strings"
 )
 
 func ServeUpdateHandler(memStorage *st.MemStorage) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			w.WriteHeader(http.StatusMethodNotAllowed)
+		// /update/{metricType}/{metricName}/{metricValue}
 
-			return
-		}
+		log.Info(fmt.Sprintf("got request with path: %s", r.URL.Path))
 
-		//if r.FormValue("Content-Type") != "text/plain" {
-		//	w.WriteHeader(http.StatusBadRequest)
-		//	return
-		//}
-
-		pathParts := strings.Split(r.URL.Path, "/")
-
-		log.Print(pathParts)
-
-		if len(pathParts) != 5 {
+		metricType := chi.URLParam(r, "metricType")
+		metricName := chi.URLParam(r, "metricName")
+		if metricName == "" {
 			w.WriteHeader(http.StatusNotFound)
-
+			_, _ = w.Write([]byte(fmt.Sprintf("metric name not specified")))
+			log.Error(fmt.Sprintf("metric name not specified: %s", metricName))
 			return
 		}
-		metricType := pathParts[2]
-		metricName := pathParts[3]
-		value := pathParts[4]
-		err := memStorage.Update(metricType, metricName, value)
+		metricValue := chi.URLParam(r, "metricValue")
+
+		err := memStorage.Update(metricType, metricName, metricValue)
 
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -40,5 +32,22 @@ func ServeUpdateHandler(memStorage *st.MemStorage) http.HandlerFunc {
 
 			return
 		}
+		w.WriteHeader(http.StatusOK)
+	}
+}
+
+func GetMetricHandler(memStorage *st.MemStorage) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		metricType := chi.URLParam(r, "metricType")
+		metricName := chi.URLParam(r, "metricName")
+
+		value, err := memStorage.Get(metricType, metricName)
+		if err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(value))
 	}
 }
