@@ -8,9 +8,8 @@ import (
 	"net/http"
 )
 
-func ServeUpdateHandler(memStorage *st.MemStorage) http.HandlerFunc {
+func ServeUpdateHandler(memStorage st.Storage) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// /update/{metricType}/{metricName}/{metricValue}
 
 		log.Info(fmt.Sprintf("got request with path: %s", r.URL.Path))
 
@@ -36,7 +35,7 @@ func ServeUpdateHandler(memStorage *st.MemStorage) http.HandlerFunc {
 	}
 }
 
-func GetMetricHandler(memStorage *st.MemStorage) http.HandlerFunc {
+func GetMetricHandler(memStorage st.Storage) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		metricType := chi.URLParam(r, "metricType")
@@ -49,5 +48,11 @@ func GetMetricHandler(memStorage *st.MemStorage) http.HandlerFunc {
 		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(value))
+	}
+}
+
+func GetPageHandler(memStorage st.Storage) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(fmt.Sprint(memStorage.GetAll())))
 	}
 }

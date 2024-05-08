@@ -5,6 +5,12 @@ import (
 	"strconv"
 )
 
+type Storage interface {
+	Update(string, string, string) error
+	Get(string, string) (string, error)
+	GetAll() map[string]string
+}
+
 type MemStorage struct {
 	GaugeMetrics       map[string]float64
 	CounterMetrics     map[string][]int64
@@ -59,4 +65,16 @@ func (s *MemStorage) Get(metricType, metricName string) (string, error) {
 		return strconv.FormatInt(s.CounterMetrics[metricName][len(s.CounterMetrics[metricName])-1], 10), nil
 	}
 	return "", fmt.Errorf("unknown metric type: %s", metricType)
+}
+
+func (s *MemStorage) GetAll() map[string]string {
+	result := make(map[string]string)
+	for k, v := range s.GaugeMetrics {
+		result[k] = strconv.FormatFloat(v, 'f', 3, 64)
+	}
+	for k, v := range s.CounterMetrics {
+		result[k] = strconv.FormatInt(v[0], 10)
+	}
+
+	return result
 }
