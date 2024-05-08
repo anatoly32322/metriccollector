@@ -49,7 +49,7 @@ func (s *MemStorage) Get(metricType, metricName string) (string, error) {
 	switch metricType {
 	case "gauge":
 		if value, ok := s.GaugeMetrics[metricName]; ok {
-			return strconv.FormatFloat(value, 'f', 6, 64), nil
+			return strconv.FormatFloat(value, 'f', 3, 64), nil
 		}
 		return "", fmt.Errorf("gauge metric not found: %s", metricName)
 	case "counter":
