@@ -5,11 +5,12 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func MetricRouter(memStorage *st.MemStorage) chi.Router {
+func MetricRouter(memStorage st.Storage) chi.Router {
 	router := chi.NewRouter()
 
 	router.Post("/update/{metricType}/{metricName}/{metricValue}", ServeUpdateHandler(memStorage))
 	router.Get("/value/{metricType}/{metricName}", GetMetricHandler(memStorage))
+	router.Get("/", GetPageHandler(memStorage))
 
 	return router
 }
