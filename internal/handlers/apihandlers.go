@@ -18,7 +18,7 @@ func ServeUpdateHandler(memStorage *st.MemStorage) http.HandlerFunc {
 		metricName := chi.URLParam(r, "metricName")
 		if metricName == "" {
 			w.WriteHeader(http.StatusNotFound)
-			_, _ = w.Write([]byte(fmt.Sprintf("metric name not specified")))
+			_, _ = w.Write([]byte("metric name not specified"))
 			log.Error(fmt.Sprintf("metric name not specified: %s", metricName))
 			return
 		}
