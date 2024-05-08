@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math/rand"
 	"runtime"
 	"strconv"
 )
@@ -12,7 +13,7 @@ func collectMetrics() map[string]string {
 	metrics["Alloc"] = strconv.FormatUint(m.Alloc, 10)
 	metrics["BuckHashSys"] = strconv.FormatUint(m.BuckHashSys, 10)
 	metrics["Frees"] = strconv.FormatUint(m.Frees, 10)
-	metrics["GCCPUFraction"] = strconv.FormatFloat(m.GCCPUFraction, 'f', 6, 64)
+	metrics["GCCPUFraction"] = strconv.FormatFloat(m.GCCPUFraction, 'f', 3, 64)
 	metrics["GCSys"] = strconv.FormatUint(m.GCSys, 10)
 	metrics["HeapAlloc"] = strconv.FormatUint(m.HeapAlloc, 10)
 	metrics["HeapIdle"] = strconv.FormatUint(m.HeapIdle, 10)
@@ -37,5 +38,6 @@ func collectMetrics() map[string]string {
 	metrics["Sys"] = strconv.FormatUint(m.Sys, 10)
 	metrics["TotalAlloc"] = strconv.FormatUint(m.TotalAlloc, 10)
 
+	metrics["GCCPUFraction"] = strconv.FormatFloat(rand.Float64(), 'f', 3, 64)
 	return metrics
 }
