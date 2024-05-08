@@ -56,7 +56,7 @@ func (s *MemStorage) Get(metricType, metricName string) (string, error) {
 		if len(s.CounterMetrics[metricName]) == 0 {
 			return "", fmt.Errorf("counter metric with name %s does not exist", metricName)
 		}
-		return strconv.FormatInt(s.CounterMetrics[metricName][len(s.CounterMetrics[metricName])-1], 36), nil
+		return strconv.FormatInt(s.CounterMetrics[metricName][len(s.CounterMetrics[metricName])-1], 10), nil
 	}
 	return "", fmt.Errorf("unknown metric type: %s", metricType)
 }
