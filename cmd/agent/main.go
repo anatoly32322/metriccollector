@@ -1,6 +1,8 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"github.com/go-resty/resty/v2"
 	log "github.com/sirupsen/logrus"
 	"strconv"
@@ -8,20 +10,29 @@ import (
 )
 
 var (
-	pollInterval   = 2 * time.Second
-	reportInterval = int(10 * time.Second / pollInterval)
+	pollIntervalSeconds   int
+	reportIntervalSeconds int
 )
 
 func main() {
-	run()
+	host := flag.String("host", "localhost:8080", "host")
+	flag.IntVar(&reportIntervalSeconds, "r", 10, "report interval")
+	flag.IntVar(&pollIntervalSeconds, "p", 2, "poll interval")
+	flag.Parse()
+	run(*host)
 }
 
-func run() {
+func run(host string) {
+	pollInterval := time.Duration(pollIntervalSeconds) * time.Second
+	reportInterval := int(time.Duration(reportIntervalSeconds) * time.Second / pollInterval)
+	log.Info(pollInterval)
+	log.Info(reportInterval)
 	var intervalCounter = 0
 	var pollCounter = 0
 	var metrics map[string]string
 	for {
 		if intervalCounter >= reportInterval {
+			log.Info("sending metrics")
 			metrics = collectMetrics()
 			pollCounter++
 			client := resty.New()
@@ -30,7 +41,7 @@ func run() {
 					"metricType":  "gauge",
 					"metricName":  metricName,
 					"metricValue": metricValue,
-				}).Post("http://localhost:8080/update/{metricType}/{metricName}/{metricValue}")
+				}).Post(fmt.Sprintf("http://%s/update/{metricType}/{metricName}/{metricValue}", host))
 				if err != nil {
 					log.Error(err)
 				}
@@ -39,7 +50,7 @@ func run() {
 				"metricType":  "counter",
 				"metricName":  "PollCount",
 				"metricValue": strconv.Itoa(pollCounter),
-			}).Post("http://localhost:8080/update/{metricType}/{metricName}/{metricValue}")
+			}).Post(fmt.Sprintf("http://%s/update/{metricType}/{metricName}/{metricValue}", host))
 			if err != nil {
 				log.Error(err)
 			}
