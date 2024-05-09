@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"github.com/anatoly32322/metriccollector/internal/handlers"
 	st "github.com/anatoly32322/metriccollector/internal/storage"
 	log "github.com/sirupsen/logrus"
@@ -8,12 +9,15 @@ import (
 )
 
 func main() {
-	run()
+	host := flag.String("a", "localhost:8080", "hostname to listen on")
+	flag.Parse()
+	run(*host)
 }
 
-func run() {
+func run(host string) {
 	memStorage := st.NewMemStorage()
 
 	router := apihandlers.MetricRouter(memStorage)
-	log.Fatal(http.ListenAndServe(":8080", router))
+	log.Info(host)
+	log.Fatal(http.ListenAndServe(host, router))
 }
