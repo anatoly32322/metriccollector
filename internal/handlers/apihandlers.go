@@ -44,6 +44,8 @@ func GetMetricHandler(memStorage st.Storage) http.HandlerFunc {
 		value, err := memStorage.Get(metricType, metricName)
 		if err != nil {
 			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(err.Error()))
+
 			return
 		}
 		w.WriteHeader(http.StatusOK)
