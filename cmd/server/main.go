@@ -6,11 +6,17 @@ import (
 	st "github.com/anatoly32322/metriccollector/internal/storage"
 	log "github.com/sirupsen/logrus"
 	"net/http"
+	"os"
 )
 
 func main() {
 	host := flag.String("a", "localhost:8080", "hostname to listen on")
 	flag.Parse()
+
+	if envHostAddr := os.Getenv("ADDRESS"); envHostAddr != "" {
+		host = &envHostAddr
+	}
+
 	run(*host)
 }
 

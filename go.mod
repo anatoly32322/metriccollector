@@ -3,6 +3,7 @@ module github.com/anatoly32322/metriccollector
 go 1.21.9
 
 require (
+	github.com/caarlos0/env/v6 v6.10.1
 	github.com/go-chi/chi/v5 v5.0.12
 	github.com/go-resty/resty/v2 v2.12.0
 	github.com/sirupsen/logrus v1.9.3

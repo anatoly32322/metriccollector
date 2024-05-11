@@ -3,28 +3,38 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/caarlos0/env/v6"
 	"github.com/go-resty/resty/v2"
 	log "github.com/sirupsen/logrus"
 	"strconv"
 	"time"
 )
 
-var (
-	pollIntervalSeconds   int
-	reportIntervalSeconds int
-)
-
-func main() {
-	host := flag.String("host", "localhost:8080", "host")
-	flag.IntVar(&reportIntervalSeconds, "r", 10, "report interval")
-	flag.IntVar(&pollIntervalSeconds, "p", 2, "poll interval")
-	flag.Parse()
-	run(*host)
+type Config struct {
+	Host                  string `env:"ADDRESS"`
+	PollIntervalSeconds   int    `env:"POLL_INTERVAL"`
+	ReportIntervalSeconds int    `env:"REPORT_INTERVAL"`
 }
 
-func run(host string) {
-	pollInterval := time.Duration(pollIntervalSeconds) * time.Second
-	reportInterval := int(time.Duration(reportIntervalSeconds) * time.Second / pollInterval)
+func main() {
+	var cfg Config
+	flag.StringVar(&cfg.Host, "a", "localhost:8080", "host")
+	flag.IntVar(&cfg.ReportIntervalSeconds, "r", 10, "report interval")
+	flag.IntVar(&cfg.PollIntervalSeconds, "p", 2, "poll interval")
+	flag.Parse()
+
+	err := env.Parse(&cfg)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Println(cfg)
+
+	run(cfg)
+}
+
+func run(cfg Config) {
+	pollInterval := time.Duration(cfg.PollIntervalSeconds) * time.Second
+	reportInterval := int(time.Duration(cfg.ReportIntervalSeconds) * time.Second / pollInterval)
 	log.Info(pollInterval)
 	log.Info(reportInterval)
 	var intervalCounter = 0
@@ -41,7 +51,7 @@ func run(host string) {
 					"metricType":  "gauge",
 					"metricName":  metricName,
 					"metricValue": metricValue,
-				}).Post(fmt.Sprintf("http://%s/update/{metricType}/{metricName}/{metricValue}", host))
+				}).Post(fmt.Sprintf("http://%s/update/{metricType}/{metricName}/{metricValue}", cfg.Host))
 				if err != nil {
 					log.Error(err)
 				}
@@ -50,7 +60,7 @@ func run(host string) {
 				"metricType":  "counter",
 				"metricName":  "PollCount",
 				"metricValue": strconv.Itoa(pollCounter),
-			}).Post(fmt.Sprintf("http://%s/update/{metricType}/{metricName}/{metricValue}", host))
+			}).Post(fmt.Sprintf("http://%s/update/{metricType}/{metricName}/{metricValue}", cfg.Host))
 			if err != nil {
 				log.Error(err)
 			}

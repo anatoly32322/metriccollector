@@ -28,7 +28,7 @@ func TestApiHandler(t *testing.T) {
 				statusCode:  200,
 				storage: &st.MemStorage{
 					GaugeMetrics:   map[string]float64{"Alloc": 1.2},
-					CounterMetrics: make(map[string][]int64),
+					CounterMetrics: make(map[string]int64),
 					AcceptedMetricType: map[string]bool{
 						"gauge":   true,
 						"counter": true,
@@ -38,7 +38,7 @@ func TestApiHandler(t *testing.T) {
 			request: "/update/gauge/Alloc/1.2",
 			storage: &st.MemStorage{
 				GaugeMetrics:   make(map[string]float64),
-				CounterMetrics: make(map[string][]int64),
+				CounterMetrics: make(map[string]int64),
 				AcceptedMetricType: map[string]bool{
 					"gauge":   true,
 					"counter": true,
