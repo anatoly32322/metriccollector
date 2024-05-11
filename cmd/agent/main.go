@@ -18,7 +18,7 @@ type Config struct {
 
 func main() {
 	var cfg Config
-	flag.StringVar(&cfg.Host, "host", "localhost:8080", "host")
+	flag.StringVar(&cfg.Host, "a", "localhost:8080", "host")
 	flag.IntVar(&cfg.ReportIntervalSeconds, "r", 10, "report interval")
 	flag.IntVar(&cfg.PollIntervalSeconds, "p", 2, "poll interval")
 	flag.Parse()
