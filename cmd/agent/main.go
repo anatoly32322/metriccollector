@@ -44,7 +44,6 @@ func run(cfg Config) {
 		if intervalCounter >= reportInterval {
 			log.Info("sending metrics")
 			metrics = collectMetrics()
-			pollCounter++
 			client := resty.New()
 			for metricName, metricValue := range metrics {
 				_, err := client.R().SetPathParams(map[string]string{
@@ -65,7 +64,9 @@ func run(cfg Config) {
 				log.Error(err)
 			}
 			intervalCounter = 0
+			pollCounter = 0
 		}
+		pollCounter++
 		time.Sleep(pollInterval)
 		intervalCounter++
 	}

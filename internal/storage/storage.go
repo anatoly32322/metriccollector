@@ -3,6 +3,7 @@ package storage
 import (
 	"fmt"
 	"strconv"
+	"sync"
 )
 
 type Storage interface {
@@ -12,6 +13,7 @@ type Storage interface {
 }
 
 type MemStorage struct {
+	mx                 sync.Mutex
 	GaugeMetrics       map[string]float64
 	CounterMetrics     map[string]int64
 	AcceptedMetricType map[string]bool
@@ -29,6 +31,8 @@ func NewMemStorage() *MemStorage {
 }
 
 func (s *MemStorage) Update(metricType, metricName, value string) error {
+	s.mx.Lock()
+	defer s.mx.Unlock()
 	if !s.AcceptedMetricType[metricType] {
 		return fmt.Errorf("metric type %s not accepted", metricType)
 	}
@@ -52,6 +56,8 @@ func (s *MemStorage) Update(metricType, metricName, value string) error {
 }
 
 func (s *MemStorage) Get(metricType, metricName string) (string, error) {
+	s.mx.Lock()
+	defer s.mx.Unlock()
 	switch metricType {
 	case "gauge":
 		if value, ok := s.GaugeMetrics[metricName]; ok {
@@ -68,6 +74,8 @@ func (s *MemStorage) Get(metricType, metricName string) (string, error) {
 }
 
 func (s *MemStorage) GetAll() map[string]string {
+	s.mx.Lock()
+	defer s.mx.Unlock()
 	result := make(map[string]string)
 	for k, v := range s.GaugeMetrics {
 		result[k] = fmt.Sprintf("%g", v)
