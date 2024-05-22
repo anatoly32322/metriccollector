@@ -1,28 +1,29 @@
 package main
 
 import (
-	"github.com/anatoly32322/metriccollector/internal/apihandlers"
+	"flag"
+	"github.com/anatoly32322/metriccollector/internal/handlers"
 	st "github.com/anatoly32322/metriccollector/internal/storage"
+	log "github.com/sirupsen/logrus"
 	"net/http"
+	"os"
 )
 
 func main() {
-	run()
-}
+	host := flag.String("a", "localhost:8080", "hostname to listen on")
+	flag.Parse()
 
-func run() {
-	memStorage := st.NewMemStorage()
-	mux := http.NewServeMux()
-
-	mux.Handle("/update/", apihandlers.ServeUpdateHandler(*memStorage))
-
-	err := http.ListenAndServe(":8080", mux)
-	if err != nil {
-		panic(err)
+	if envHostAddr := os.Getenv("ADDRESS"); envHostAddr != "" {
+		host = &envHostAddr
 	}
 
+	run(*host)
 }
 
-func addRoutes(mux *http.ServeMux) {
+func run(host string) {
+	memStorage := st.NewMemStorage()
 
+	router := apihandlers.MetricRouter(memStorage)
+	log.Info(host)
+	log.Fatal(http.ListenAndServe(host, router))
 }

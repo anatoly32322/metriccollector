@@ -3,29 +3,27 @@ package storage
 import (
 	"fmt"
 	"strconv"
+	"sync"
 )
 
-type GaugeMetric struct {
-	Name  string
-	Value float64
-}
-
-type CounterMetric struct {
-	Name  string
-	Value int64
+type Storage interface {
+	Update(string, string, string) error
+	Get(string, string) (string, error)
+	GetAll() map[string]string
 }
 
 type MemStorage struct {
-	gaugeMetrics       GaugeMetric
-	counterMetrics     []CounterMetric
-	acceptedMetricType map[string]bool
+	mx                 sync.Mutex
+	GaugeMetrics       map[string]float64
+	CounterMetrics     map[string]int64
+	AcceptedMetricType map[string]bool
 }
 
 func NewMemStorage() *MemStorage {
 	return &MemStorage{
-		gaugeMetrics:   GaugeMetric{},
-		counterMetrics: make([]CounterMetric, 0),
-		acceptedMetricType: map[string]bool{
+		GaugeMetrics:   make(map[string]float64),
+		CounterMetrics: make(map[string]int64),
+		AcceptedMetricType: map[string]bool{
 			"gauge":   true,
 			"counter": true,
 		},
@@ -33,7 +31,9 @@ func NewMemStorage() *MemStorage {
 }
 
 func (s *MemStorage) Update(metricType, metricName, value string) error {
-	if !s.acceptedMetricType[metricType] {
+	s.mx.Lock()
+	defer s.mx.Unlock()
+	if !s.AcceptedMetricType[metricType] {
 		return fmt.Errorf("metric type %s not accepted", metricType)
 	}
 	switch metricType {
@@ -42,15 +42,47 @@ func (s *MemStorage) Update(metricType, metricName, value string) error {
 		if err != nil {
 			return err
 		}
-		s.gaugeMetrics = GaugeMetric{metricName, floatValue}
+		s.GaugeMetrics[metricName] = floatValue
 	case "counter":
 		intValue, err := strconv.ParseInt(value, 10, 64)
 		if err != nil {
 			return err
 		}
-		s.counterMetrics = append(s.counterMetrics, CounterMetric{metricName, intValue})
+		s.CounterMetrics[metricName] += intValue
 	default:
 		return fmt.Errorf("unknown metric type: %s", metricType)
 	}
 	return nil
+}
+
+func (s *MemStorage) Get(metricType, metricName string) (string, error) {
+	s.mx.Lock()
+	defer s.mx.Unlock()
+	switch metricType {
+	case "gauge":
+		if value, ok := s.GaugeMetrics[metricName]; ok {
+			return fmt.Sprintf("%g", value), nil
+		}
+		return "", fmt.Errorf("gauge metric not found: %s", metricName)
+	case "counter":
+		if _, ok := s.CounterMetrics[metricName]; !ok {
+			return "", fmt.Errorf("counter metric with name %s does not exist", metricName)
+		}
+		return strconv.FormatInt(s.CounterMetrics[metricName], 10), nil
+	}
+	return "", fmt.Errorf("unknown metric type: %s", metricType)
+}
+
+func (s *MemStorage) GetAll() map[string]string {
+	s.mx.Lock()
+	defer s.mx.Unlock()
+	result := make(map[string]string)
+	for k, v := range s.GaugeMetrics {
+		result[k] = fmt.Sprintf("%g", v)
+	}
+	for k, v := range s.CounterMetrics {
+		result[k] = strconv.FormatInt(v, 10)
+	}
+
+	return result
 }
