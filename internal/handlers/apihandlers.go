@@ -4,21 +4,17 @@ import (
 	"fmt"
 	st "github.com/anatoly32322/metriccollector/internal/storage"
 	"github.com/go-chi/chi/v5"
-	log "github.com/sirupsen/logrus"
 	"net/http"
 )
 
 func ServeUpdateHandler(memStorage st.Storage) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		log.Info(fmt.Sprintf("got request with path: %s", r.URL.Path))
-
 		metricType := chi.URLParam(r, "metricType")
 		metricName := chi.URLParam(r, "metricName")
 		if metricName == "" {
 			w.WriteHeader(http.StatusNotFound)
 			_, _ = w.Write([]byte("metric name not specified"))
-			log.Error(fmt.Sprintf("metric name not specified: %s", metricName))
 			return
 		}
 		metricValue := chi.URLParam(r, "metricValue")

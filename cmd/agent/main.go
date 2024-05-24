@@ -62,9 +62,10 @@ func run(cfg Config) {
 			}).Post(fmt.Sprintf("http://%s/update/{metricType}/{metricName}/{metricValue}", cfg.Host))
 			if err != nil {
 				log.Error(err)
+			} else {
+				pollCounter = 0
 			}
 			intervalCounter = 0
-			pollCounter = 0
 		}
 		pollCounter++
 		time.Sleep(pollInterval)

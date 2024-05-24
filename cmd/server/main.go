@@ -3,8 +3,9 @@ package main
 import (
 	"flag"
 	"github.com/anatoly32322/metriccollector/internal/handlers"
+	log "github.com/anatoly32322/metriccollector/internal/logger"
 	st "github.com/anatoly32322/metriccollector/internal/storage"
-	log "github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 	"net/http"
 	"os"
 )
@@ -17,6 +18,14 @@ func main() {
 		host = &envHostAddr
 	}
 
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
+	defer logger.Sync()
+
+	log.Sugar = *logger.Sugar()
+
 	run(*host)
 }
 
@@ -24,6 +33,9 @@ func run(host string) {
 	memStorage := st.NewMemStorage()
 
 	router := apihandlers.MetricRouter(memStorage)
-	log.Info(host)
-	log.Fatal(http.ListenAndServe(host, router))
+
+	err := http.ListenAndServe(host, log.WithLogging(router))
+	if err != nil {
+		return
+	}
 }
