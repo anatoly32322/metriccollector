@@ -84,18 +84,18 @@ func GetMetricHandlerV2(memStorage st.Storage) http.HandlerFunc {
 		var buf bytes.Buffer
 
 		if r.Header.Get("Content-Type") != "application/json" {
-			http.Error(w, "Request body is not JSON", http.StatusBadRequest)
+			http.Error(w, "Request body is not JSON", http.StatusNotFound)
 
 			return
 		}
 		_, err := buf.ReadFrom(r.Body)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusNotFound)
 
 			return
 		}
 		if err = json.Unmarshal(buf.Bytes(), &metrics); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusNotFound)
 
 			return
 		}
@@ -107,7 +107,7 @@ func GetMetricHandlerV2(memStorage st.Storage) http.HandlerFunc {
 
 		gotMetric, err := memStorage.GetV2(metrics)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusNotFound)
 
 			return
 		}

@@ -51,6 +51,9 @@ func run(cfg Config) {
 					MType: "gauge",
 					Value: &metricValue,
 				})
+				if err != nil {
+					log.Fatal(err)
+				}
 				_, err = client.R().
 					SetHeader("Content-Type", "application/json").
 					SetBody(req).
@@ -64,6 +67,9 @@ func run(cfg Config) {
 				MType: "counter",
 				Delta: &pollCounter,
 			})
+			if err != nil {
+				log.Fatal(err)
+			}
 			_, err = client.R().
 				SetHeader("Content-Type", "application/json").
 				SetBody(req).
