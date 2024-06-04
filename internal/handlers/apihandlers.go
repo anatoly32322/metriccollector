@@ -149,6 +149,7 @@ func GetPageHandler(memStorage st.Storage) http.HandlerFunc {
 			_, _ = w.Write([]byte(err.Error()))
 			return
 		}
+		w.Header().Set("Content-Type", "text/html")
 		_, _ = w.Write(data)
 	}
 }
