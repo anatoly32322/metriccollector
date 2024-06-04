@@ -3,41 +3,47 @@ package main
 import (
 	"math/rand"
 	"runtime"
-	"strconv"
 )
 
-func collectMetrics() map[string]string {
+type Metrics struct {
+	ID    string   `json:"id"`              // имя метрики
+	MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
+	Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
+	Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
+}
+
+func collectMetrics() map[string]float64 {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	metrics := map[string]string{}
-	metrics["Alloc"] = strconv.FormatUint(m.Alloc, 10)
-	metrics["BuckHashSys"] = strconv.FormatUint(m.BuckHashSys, 10)
-	metrics["Frees"] = strconv.FormatUint(m.Frees, 10)
-	metrics["GCCPUFraction"] = strconv.FormatFloat(m.GCCPUFraction, 'f', 3, 64)
-	metrics["GCSys"] = strconv.FormatUint(m.GCSys, 10)
-	metrics["HeapAlloc"] = strconv.FormatUint(m.HeapAlloc, 10)
-	metrics["HeapIdle"] = strconv.FormatUint(m.HeapIdle, 10)
-	metrics["HeapInuse"] = strconv.FormatUint(m.HeapInuse, 10)
-	metrics["HeapReleased"] = strconv.FormatUint(m.HeapReleased, 10)
-	metrics["HeapObjects"] = strconv.FormatUint(m.HeapObjects, 10)
-	metrics["HeapSys"] = strconv.FormatUint(m.HeapSys, 10)
-	metrics["LastGC"] = strconv.FormatUint(m.LastGC, 10)
-	metrics["Lookups"] = strconv.FormatUint(m.Lookups, 10)
-	metrics["MCacheInuse"] = strconv.FormatUint(m.MCacheInuse, 10)
-	metrics["MCacheSys"] = strconv.FormatUint(m.MCacheSys, 10)
-	metrics["MSpanInuse"] = strconv.FormatUint(m.MSpanInuse, 10)
-	metrics["MSpanSys"] = strconv.FormatUint(m.MSpanSys, 10)
-	metrics["Mallocs"] = strconv.FormatUint(m.Mallocs, 10)
-	metrics["NextGC"] = strconv.FormatUint(m.NextGC, 10)
-	metrics["NumForcedGC"] = strconv.FormatUint(uint64(m.NumForcedGC), 10)
-	metrics["NumGC"] = strconv.FormatUint(uint64(m.NumGC), 10)
-	metrics["OtherSys"] = strconv.FormatUint(m.OtherSys, 10)
-	metrics["PauseTotalNs"] = strconv.FormatUint(m.PauseTotalNs, 10)
-	metrics["StackInuse"] = strconv.FormatUint(m.StackInuse, 10)
-	metrics["StackSys"] = strconv.FormatUint(m.StackSys, 10)
-	metrics["Sys"] = strconv.FormatUint(m.Sys, 10)
-	metrics["TotalAlloc"] = strconv.FormatUint(m.TotalAlloc, 10)
+	gaugeMetrics := map[string]float64{}
+	gaugeMetrics["Alloc"] = float64(m.Alloc)
+	gaugeMetrics["BuckHashSys"] = float64(m.BuckHashSys)
+	gaugeMetrics["Frees"] = float64(m.Frees)
+	gaugeMetrics["GCCPUFraction"] = m.GCCPUFraction
+	gaugeMetrics["GCSys"] = float64(m.GCSys)
+	gaugeMetrics["HeapAlloc"] = float64(m.HeapAlloc)
+	gaugeMetrics["HeapIdle"] = float64(m.HeapIdle)
+	gaugeMetrics["HeapInuse"] = float64(m.HeapInuse)
+	gaugeMetrics["HeapReleased"] = float64(m.HeapReleased)
+	gaugeMetrics["HeapObjects"] = float64(m.HeapObjects)
+	gaugeMetrics["HeapSys"] = float64(m.HeapSys)
+	gaugeMetrics["LastGC"] = float64(m.LastGC)
+	gaugeMetrics["Lookups"] = float64(m.Lookups)
+	gaugeMetrics["MCacheInuse"] = float64(m.MCacheInuse)
+	gaugeMetrics["MCacheSys"] = float64(m.MCacheSys)
+	gaugeMetrics["MSpanInuse"] = float64(m.MSpanInuse)
+	gaugeMetrics["MSpanSys"] = float64(m.MSpanSys)
+	gaugeMetrics["Mallocs"] = float64(m.Mallocs)
+	gaugeMetrics["NextGC"] = float64(m.NextGC)
+	gaugeMetrics["NumForcedGC"] = float64(m.NumForcedGC)
+	gaugeMetrics["NumGC"] = float64(m.NumGC)
+	gaugeMetrics["OtherSys"] = float64(m.OtherSys)
+	gaugeMetrics["PauseTotalNs"] = float64(m.PauseTotalNs)
+	gaugeMetrics["StackInuse"] = float64(m.StackInuse)
+	gaugeMetrics["StackSys"] = float64(m.StackSys)
+	gaugeMetrics["Sys"] = float64(m.Sys)
+	gaugeMetrics["TotalAlloc"] = float64(m.TotalAlloc)
 
-	metrics["GCCPUFraction"] = strconv.FormatFloat(rand.Float64(), 'f', 3, 64)
-	return metrics
+	gaugeMetrics["GCCPUFraction"] = rand.Float64()
+	return gaugeMetrics
 }

@@ -8,14 +8,81 @@ import (
 	"go.uber.org/zap"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
+	"time"
 )
 
+type Config struct {
+	Host            string `env:"ADDRESS"`
+	StoreInterval   int64  `env:"STORE_INTERVAL"`
+	FileStoragePath string `env:"FILE_STORAGE_PATH"`
+	Restore         bool   `env:"RESTORE"`
+}
+
+func gzipMiddleware(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		contentType := r.Header.Get("content-type")
+		if contentType != "application/json" && contentType != "text/html" {
+			h.ServeHTTP(w, r)
+
+			return
+		}
+
+		ow := w
+
+		acceptEncoding := r.Header.Get("Accept-Encoding")
+		supportsGzip := strings.Contains(acceptEncoding, "gzip")
+		if supportsGzip {
+			cw := newCompressWriter(w)
+			ow = cw
+			defer cw.Close()
+		}
+
+		contentEncoding := r.Header.Get("Content-Encoding")
+		sendsGzip := strings.Contains(contentEncoding, "gzip")
+		if sendsGzip {
+			cr, err := newCompressReader(r.Body)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+
+				return
+			}
+			r.Body = cr
+			defer cr.Close()
+		}
+
+		h.ServeHTTP(ow, r)
+	})
+}
+
 func main() {
-	host := flag.String("a", "localhost:8080", "hostname to listen on")
+	var err error
+	var cfg Config
+	flag.StringVar(&cfg.Host, "a", "localhost:8080", "hostname to listen on")
+	flag.Int64Var(&cfg.StoreInterval, "i", 10, "interval to store metrics")
+	flag.StringVar(&cfg.FileStoragePath, "f", "/tmp/metrics-db.json", "path to file storage path")
+	flag.BoolVar(&cfg.Restore, "r", true, "restore metrics from storage")
+
 	flag.Parse()
 
 	if envHostAddr := os.Getenv("ADDRESS"); envHostAddr != "" {
-		host = &envHostAddr
+		cfg.Host = envHostAddr
+	}
+	if envStoreInterval := os.Getenv("STORE_INTERVAL"); envStoreInterval != "" {
+		cfg.StoreInterval, err = strconv.ParseInt(envStoreInterval, 10, 64)
+		if err != nil {
+			panic(err)
+		}
+	}
+	if envFileStoragePath := os.Getenv("FILE_STORAGE_PATH"); envFileStoragePath != "" {
+		cfg.FileStoragePath = envFileStoragePath
+	}
+	if envRestore := os.Getenv("RESTORE"); envRestore != "" {
+		cfg.Restore, err = strconv.ParseBool(envRestore)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	logger, err := zap.NewDevelopment()
@@ -26,16 +93,40 @@ func main() {
 
 	log.Sugar = *logger.Sugar()
 
-	run(*host)
+	err = run(cfg)
+	if err != nil {
+		log.Sugar.Error(err)
+	}
 }
 
-func run(host string) {
+func run(cfg Config) error {
 	memStorage := st.NewMemStorage()
+	if cfg.Restore {
+		err := memStorage.Load(cfg.FileStoragePath)
+		if err != nil {
+			return err
+		}
+	}
+
+	defer func(memStorage *st.MemStorage, fname string) {
+		err := memStorage.Save(fname)
+		if err != nil {
+			log.Sugar.Error(err)
+		}
+	}(memStorage, cfg.FileStoragePath)
+
+	go func() {
+		var err error
+		for {
+			time.Sleep(time.Duration(cfg.StoreInterval) * time.Second)
+			err = memStorage.Save(cfg.FileStoragePath)
+			if err != nil {
+				log.Sugar.Fatal(err)
+			}
+		}
+	}()
 
 	router := apihandlers.MetricRouter(memStorage)
 
-	err := http.ListenAndServe(host, log.WithLogging(router))
-	if err != nil {
-		return
-	}
+	return http.ListenAndServe(cfg.Host, log.WithLogging(gzipMiddleware(router)))
 }
