@@ -44,6 +44,6 @@ func collectMetrics() map[string]float64 {
 	gaugeMetrics["Sys"] = float64(m.Sys)
 	gaugeMetrics["TotalAlloc"] = float64(m.TotalAlloc)
 
-	gaugeMetrics["GCCPUFraction"] = rand.Float64()
+	gaugeMetrics["RandomValue"] = rand.Float64()
 	return gaugeMetrics
 }
