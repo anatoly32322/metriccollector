@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -18,43 +17,6 @@ type Config struct {
 	StoreInterval   int64  `env:"STORE_INTERVAL"`
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
 	Restore         bool   `env:"RESTORE"`
-}
-
-func gzipMiddleware(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		contentType := r.Header.Get("Content-Type")
-		if contentType != "application/json" && contentType != "text/html" {
-			h.ServeHTTP(w, r)
-
-			return
-		}
-
-		ow := w
-
-		acceptEncoding := r.Header.Get("Accept-Encoding")
-		supportsGzip := strings.Contains(acceptEncoding, "gzip")
-		if supportsGzip {
-			cw := newCompressWriter(w)
-			ow = cw
-			ow.Header().Set("Content-Encoding", "gzip") // это скорее затычка, чем правильное решение, пока не понял, как правильно
-			defer cw.Close()
-		}
-
-		contentEncoding := r.Header.Get("Content-Encoding")
-		sendsGzip := strings.Contains(contentEncoding, "gzip")
-		if sendsGzip {
-			cr, err := newCompressReader(r.Body)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-
-				return
-			}
-			r.Body = cr
-			defer cr.Close()
-		}
-
-		h.ServeHTTP(ow, r)
-	})
 }
 
 func main() {
@@ -129,5 +91,5 @@ func run(cfg Config) error {
 
 	router := apihandlers.MetricRouter(memStorage)
 
-	return http.ListenAndServe(cfg.Host, log.WithLogging(gzipMiddleware(router)))
+	return http.ListenAndServe(cfg.Host, log.WithLogging(router))
 }
