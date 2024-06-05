@@ -22,7 +22,7 @@ type Config struct {
 
 func gzipMiddleware(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		contentType := r.Header.Get("content-type")
+		contentType := r.Header.Get("Content-Type")
 		if contentType != "application/json" && contentType != "text/html" {
 			h.ServeHTTP(w, r)
 
@@ -36,6 +36,7 @@ func gzipMiddleware(h http.Handler) http.Handler {
 		if supportsGzip {
 			cw := newCompressWriter(w)
 			ow = cw
+			ow.Header().Set("Content-Encoding", "gzip") // это скорее затычка, чем правильное решение, пока не понял, как правильно
 			defer cw.Close()
 		}
 
