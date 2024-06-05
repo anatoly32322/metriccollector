@@ -3,7 +3,7 @@ package storage
 import (
 	"bufio"
 	"encoding/json"
-	"fmt"
+	log "github.com/anatoly32322/metriccollector/internal/logger"
 	"os"
 )
 
@@ -25,7 +25,11 @@ func (s *MemStorage) Load(fname string) error {
 	}
 
 	if err := scanner.Err(); err != nil {
-		fmt.Println("Error reading file:", err)
+		log.Sugar.Info("Error reading file:", err)
+	}
+
+	if len(data) == 0 {
+		return nil
 	}
 
 	err = json.Unmarshal(data, s)
