@@ -5,6 +5,7 @@ import (
 	"github.com/anatoly32322/metriccollector/internal/handlers"
 	log "github.com/anatoly32322/metriccollector/internal/logger"
 	st "github.com/anatoly32322/metriccollector/internal/storage"
+	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 	"net/http"
 	"os"
@@ -17,6 +18,13 @@ type Config struct {
 	StoreInterval   int64  `env:"STORE_INTERVAL"`
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
 	Restore         bool   `env:"RESTORE"`
+}
+
+func StoreMiddleware(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.ServeHTTP(w, r)
+
+	})
 }
 
 func main() {
@@ -78,18 +86,23 @@ func run(cfg Config) error {
 		}
 	}(memStorage, cfg.FileStoragePath)
 
-	go func() {
-		var err error
-		for {
-			time.Sleep(time.Duration(cfg.StoreInterval) * time.Second)
-			err = memStorage.Save(cfg.FileStoragePath)
-			if err != nil {
-				log.Sugar.Fatal(err)
-			}
-		}
-	}()
+	var router chi.Router
 
-	router := apihandlers.MetricRouter(memStorage)
+	if cfg.StoreInterval != 0 {
+		go func() {
+			var err error
+			for {
+				time.Sleep(time.Duration(cfg.StoreInterval) * time.Second)
+				err = memStorage.Save(cfg.FileStoragePath)
+				if err != nil {
+					log.Sugar.Error(err)
+				}
+			}
+		}()
+		router = apihandlers.MetricRouter(memStorage, false, "")
+	} else {
+		router = apihandlers.MetricRouter(memStorage, true, cfg.FileStoragePath)
+	}
 
 	return http.ListenAndServe(cfg.Host, log.WithLogging(router))
 }

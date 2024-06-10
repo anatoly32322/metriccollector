@@ -20,6 +20,8 @@ type Storage interface {
 	Get(string, string) (string, error)
 	GetV2(Metrics) (*Metrics, error)
 	GetAll() ([]byte, error)
+	Save(string) error
+	Load(string) error
 }
 
 type MemStorage struct {

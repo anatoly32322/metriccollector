@@ -52,7 +52,7 @@ func run(cfg Config) {
 					Value: &metricValue,
 				})
 				if err != nil {
-					log.Fatal(err)
+					log.Error(err)
 				}
 				_, err = client.R().
 					SetHeader("Content-Type", "application/json").
@@ -68,7 +68,7 @@ func run(cfg Config) {
 				Delta: &pollCounter,
 			})
 			if err != nil {
-				log.Fatal(err)
+				log.Error(err)
 			}
 			_, err = client.R().
 				SetHeader("Content-Type", "application/json").
