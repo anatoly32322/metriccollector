@@ -49,7 +49,7 @@ func TestApiHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ts := httptest.NewServer(MetricRouter(tt.storage))
+			ts := httptest.NewServer(MetricRouter(tt.storage, false, ""))
 			defer ts.Close()
 
 			request := httptest.NewRequest(http.MethodPost, tt.request, nil)
