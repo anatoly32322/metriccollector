@@ -4,7 +4,6 @@ import (
 	log "github.com/anatoly32322/metriccollector/internal/logger"
 	st "github.com/anatoly32322/metriccollector/internal/storage"
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 	"net/http"
 )
 
@@ -23,8 +22,6 @@ func syncStoreMiddleware(memStorage st.Storage, storePath string) func(http.Hand
 func MetricRouter(memStorage st.Storage, isSyncStore bool, storePath string) chi.Router {
 	router := chi.NewRouter()
 	updateSubRouter := chi.NewRouter()
-
-	router.Use(middleware.Compress(5))
 
 	if isSyncStore {
 		storeMiddleware := syncStoreMiddleware(memStorage, storePath)
