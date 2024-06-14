@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -20,10 +21,32 @@ type Config struct {
 	Restore         bool   `env:"RESTORE"`
 }
 
-func StoreMiddleware(h http.Handler) http.Handler {
+func gzipMiddleware(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.ServeHTTP(w, r)
+		ow := w
 
+		acceptEncoding := r.Header.Get("Accept-Encoding")
+		supportsGzip := strings.Contains(acceptEncoding, "gzip")
+		if supportsGzip {
+			cw := newCompressWriter(w)
+			ow = cw
+			defer cw.Close()
+		}
+
+		contentEncoding := r.Header.Get("Content-Encoding")
+		sendsGzip := strings.Contains(contentEncoding, "gzip")
+		if sendsGzip {
+			cr, err := newCompressReader(r.Body)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+
+				return
+			}
+			r.Body = cr
+			defer cr.Close()
+		}
+
+		h.ServeHTTP(ow, r)
 	})
 }
 
@@ -104,5 +127,5 @@ func run(cfg Config) error {
 		router = apihandlers.MetricRouter(memStorage, true, cfg.FileStoragePath)
 	}
 
-	return http.ListenAndServe(cfg.Host, log.WithLogging(router))
+	return http.ListenAndServe(cfg.Host, log.WithLogging(gzipMiddleware(router)))
 }

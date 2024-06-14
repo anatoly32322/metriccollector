@@ -8,6 +8,10 @@ import (
 )
 
 func (s *MemStorage) Load(fname string) error {
+	if fname == "" {
+		return nil
+	}
+
 	s.mx.Lock()
 
 	defer s.mx.Unlock()
@@ -41,6 +45,10 @@ func (s *MemStorage) Load(fname string) error {
 }
 
 func (s *MemStorage) Save(fname string) error {
+	if fname == "" {
+		return nil
+	}
+
 	s.mx.Lock()
 
 	defer s.mx.Unlock()
