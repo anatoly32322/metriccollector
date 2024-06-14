@@ -23,14 +23,11 @@ type Config struct {
 
 func gzipMiddleware(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ow := w
+		contentType := r.Header.Get("Content-Type")
+		if contentType != "application/json" && contentType != "text/html" {
+			h.ServeHTTP(w, r)
 
-		acceptEncoding := r.Header.Get("Accept-Encoding")
-		supportsGzip := strings.Contains(acceptEncoding, "gzip")
-		if supportsGzip {
-			cw := newCompressWriter(w)
-			ow = cw
-			defer cw.Close()
+			return
 		}
 
 		contentEncoding := r.Header.Get("Content-Encoding")
@@ -46,7 +43,7 @@ func gzipMiddleware(h http.Handler) http.Handler {
 			defer cr.Close()
 		}
 
-		h.ServeHTTP(ow, r)
+		h.ServeHTTP(w, r)
 	})
 }
 
