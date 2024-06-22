@@ -1,26 +1,26 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/caarlos0/env/v6"
 	"github.com/go-resty/resty/v2"
 	log "github.com/sirupsen/logrus"
-	"strconv"
 	"time"
 )
 
 type Config struct {
 	Host                  string `env:"ADDRESS"`
-	PollIntervalSeconds   int    `env:"POLL_INTERVAL"`
-	ReportIntervalSeconds int    `env:"REPORT_INTERVAL"`
+	PollIntervalSeconds   int64  `env:"POLL_INTERVAL"`
+	ReportIntervalSeconds int64  `env:"REPORT_INTERVAL"`
 }
 
 func main() {
 	var cfg Config
 	flag.StringVar(&cfg.Host, "a", "localhost:8080", "host")
-	flag.IntVar(&cfg.ReportIntervalSeconds, "r", 10, "report interval")
-	flag.IntVar(&cfg.PollIntervalSeconds, "p", 2, "poll interval")
+	flag.Int64Var(&cfg.ReportIntervalSeconds, "r", 10, "report interval")
+	flag.Int64Var(&cfg.PollIntervalSeconds, "p", 2, "poll interval")
 	flag.Parse()
 
 	err := env.Parse(&cfg)
@@ -34,37 +34,52 @@ func main() {
 
 func run(cfg Config) {
 	pollInterval := time.Duration(cfg.PollIntervalSeconds) * time.Second
-	reportInterval := int(time.Duration(cfg.ReportIntervalSeconds) * time.Second / pollInterval)
+	reportInterval := int64(time.Duration(cfg.ReportIntervalSeconds) * time.Second / pollInterval)
 	log.Info(pollInterval)
 	log.Info(reportInterval)
-	var intervalCounter = 0
-	var pollCounter = 0
-	var metrics map[string]string
+	var intervalCounter int64
+	var pollCounter int64
+	var gaugeMetrics map[string]float64
 	for {
 		if intervalCounter >= reportInterval {
 			log.Info("sending metrics")
-			metrics = collectMetrics()
+			gaugeMetrics = collectMetrics()
 			client := resty.New()
-			for metricName, metricValue := range metrics {
-				_, err := client.R().SetPathParams(map[string]string{
-					"metricType":  "gauge",
-					"metricName":  metricName,
-					"metricValue": metricValue,
-				}).Post(fmt.Sprintf("http://%s/update/{metricType}/{metricName}/{metricValue}", cfg.Host))
+			for metricName, metricValue := range gaugeMetrics {
+				req, err := json.Marshal(&Metrics{
+					ID:    metricName,
+					MType: "gauge",
+					Value: &metricValue,
+				})
+				if err != nil {
+					log.Error(err)
+				}
+				_, err = client.R().
+					SetHeader("Content-Type", "application/json").
+					SetBody(req).
+					Post(fmt.Sprintf("http://%s/update/", cfg.Host))
 				if err != nil {
 					log.Error(err)
 				}
 			}
-			_, err := client.R().SetPathParams(map[string]string{
-				"metricType":  "counter",
-				"metricName":  "PollCount",
-				"metricValue": strconv.Itoa(pollCounter),
-			}).Post(fmt.Sprintf("http://%s/update/{metricType}/{metricName}/{metricValue}", cfg.Host))
+			req, err := json.Marshal(&Metrics{
+				ID:    "PollCount",
+				MType: "counter",
+				Delta: &pollCounter,
+			})
 			if err != nil {
 				log.Error(err)
 			}
+			_, err = client.R().
+				SetHeader("Content-Type", "application/json").
+				SetBody(req).
+				Post(fmt.Sprintf("http://%s/update/", cfg.Host))
+			if err != nil {
+				log.Error(err)
+			} else {
+				pollCounter = 0
+			}
 			intervalCounter = 0
-			pollCounter = 0
 		}
 		pollCounter++
 		time.Sleep(pollInterval)
