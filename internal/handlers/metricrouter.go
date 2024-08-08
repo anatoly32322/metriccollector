@@ -20,7 +20,7 @@ func syncStoreMiddleware(memStorage st.Storage, storePath string) func(http.Hand
 	}
 }
 
-func MetricRouter(memStorage st.Storage, isSyncStore bool, storePath string) chi.Router {
+func MetricRouter(memStorage st.Storage, isSyncStore bool, storePath, dbHost string) chi.Router {
 	router := chi.NewRouter()
 	updateSubRouter := chi.NewRouter()
 
@@ -36,6 +36,7 @@ func MetricRouter(memStorage st.Storage, isSyncStore bool, storePath string) chi
 	router.Mount("/update", updateSubRouter)
 	router.Post("/value/", GetMetricHandlerV2(memStorage))
 	router.Get("/value/{metricType}/{metricName}", GetMetricHandler(memStorage))
+	router.Get("/ping", GetPing(dbHost))
 	router.Get("/", GetPageHandler(memStorage))
 
 	return router

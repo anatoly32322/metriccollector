@@ -19,6 +19,7 @@ type Config struct {
 	StoreInterval   int64  `env:"STORE_INTERVAL"`
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
 	Restore         bool   `env:"RESTORE"`
+	DBHost          string `env:"DATABASE_DSN"`
 }
 
 func gzipMiddleware(h http.Handler) http.Handler {
@@ -54,6 +55,7 @@ func main() {
 	flag.Int64Var(&cfg.StoreInterval, "i", 10, "interval to store metrics")
 	flag.StringVar(&cfg.FileStoragePath, "f", "/tmp/metrics-db.json", "path to file storage path")
 	flag.BoolVar(&cfg.Restore, "r", true, "restore metrics from storage")
+	flag.StringVar(&cfg.DBHost, "d", "host=localhost user=username password=userpassword dbname=dbname sslmode=disable", "database dsn")
 
 	flag.Parse()
 
@@ -74,6 +76,9 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+	}
+	if envDBHost := os.Getenv("DATABASE_DSN"); envDBHost != "" {
+		cfg.DBHost = envDBHost
 	}
 
 	logger, err := zap.NewDevelopment()
@@ -119,9 +124,9 @@ func run(cfg Config) error {
 				}
 			}
 		}()
-		router = apihandlers.MetricRouter(memStorage, false, "")
+		router = apihandlers.MetricRouter(memStorage, false, "", cfg.DBHost)
 	} else {
-		router = apihandlers.MetricRouter(memStorage, true, cfg.FileStoragePath)
+		router = apihandlers.MetricRouter(memStorage, true, cfg.FileStoragePath, cfg.DBHost)
 	}
 
 	return http.ListenAndServe(cfg.Host, log.WithLogging(gzipMiddleware(router)))
