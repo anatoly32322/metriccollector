@@ -166,6 +166,7 @@ func GetPing(ps string) http.HandlerFunc {
 			_, _ = w.Write([]byte(err.Error()))
 			return
 		}
+		w.WriteHeader(http.StatusOK)
 		defer db.Close()
 	}
 }
