@@ -2,9 +2,12 @@ package apihandlers
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
+	log "github.com/anatoly32322/metriccollector/internal/logger"
 	st "github.com/anatoly32322/metriccollector/internal/storage"
 	"github.com/go-chi/chi/v5"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"net/http"
 )
 
@@ -151,5 +154,25 @@ func GetPageHandler(memStorage st.Storage) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "text/html")
 		_, _ = w.Write(data)
+	}
+}
+
+func GetPing(ps string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log.Sugar.Debug(ps)
+		db, err := sql.Open("pgx", ps)
+		defer db.Close()
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(err.Error()))
+			return
+		}
+		err = db.Ping()
+		if err != nil {
+			log.Sugar.Warn("no database connection")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
 	}
 }
