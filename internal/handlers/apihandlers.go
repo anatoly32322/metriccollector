@@ -159,14 +159,20 @@ func GetPageHandler(memStorage st.Storage) http.HandlerFunc {
 
 func GetPing(ps string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		log.Sugar.Debug(ps)
 		db, err := sql.Open("pgx", ps)
+		defer db.Close()
 		if err != nil {
-			log.Sugar.Warn("no database connection")
 			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = w.Write([]byte(err.Error()))
 			return
 		}
+		err = db.Ping()
+		if err != nil {
+			log.Sugar.Warn("no database connection")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 		w.WriteHeader(http.StatusOK)
-		defer db.Close()
 	}
 }
