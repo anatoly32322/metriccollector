@@ -7,23 +7,6 @@ import (
 	"sync"
 )
 
-type Metrics struct {
-	ID    string   `json:"id"`              // имя метрики
-	MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
-	Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
-	Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
-}
-
-type Storage interface {
-	Update(string, string, string) error
-	UpdateV2(Metrics) (*Metrics, error)
-	Get(string, string) (string, error)
-	GetV2(Metrics) (*Metrics, error)
-	GetAll() ([]byte, error)
-	Save(string) error
-	Load(string) error
-}
-
 type MemStorage struct {
 	mx                 sync.Mutex
 	GaugeMetrics       map[string]float64 `json:"gauge_metrics"`
@@ -67,7 +50,7 @@ func (s *MemStorage) Update(metricType, metricName, value string) error {
 	return nil
 }
 
-func (s *MemStorage) UpdateV2(metric Metrics) (*Metrics, error) {
+func (s *MemStorage) UpdateV2(metric Metric) (*Metric, error) {
 	s.mx.Lock()
 	defer s.mx.Unlock()
 	if !s.AcceptedMetricType[metric.MType] {
@@ -109,7 +92,7 @@ func (s *MemStorage) Get(metricType, metricName string) (string, error) {
 	return "", fmt.Errorf("unknown metric type: %s", metricType)
 }
 
-func (s *MemStorage) GetV2(metrics Metrics) (*Metrics, error) {
+func (s *MemStorage) GetV2(metrics Metric) (*Metric, error) {
 	s.mx.Lock()
 	defer s.mx.Unlock()
 	switch metrics.MType {

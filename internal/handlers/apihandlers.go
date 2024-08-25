@@ -2,15 +2,18 @@ package apihandlers
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
+	log "github.com/anatoly32322/metriccollector/internal/logger"
 	st "github.com/anatoly32322/metriccollector/internal/storage"
 	"github.com/go-chi/chi/v5"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"net/http"
 )
 
-func ServeUpdateHandlerV2(memStorage st.Storage) http.HandlerFunc {
+func ServeUpdateHandlerV2(storage st.Storage) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var metrics st.Metrics
+		var metrics st.Metric
 		var buf bytes.Buffer
 
 		if r.Header.Get("Content-Type") != "application/json" {
@@ -35,7 +38,7 @@ func ServeUpdateHandlerV2(memStorage st.Storage) http.HandlerFunc {
 			return
 		}
 
-		computedMetrics, err := memStorage.UpdateV2(metrics)
+		computedMetrics, err := storage.UpdateV2(metrics)
 
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -54,7 +57,7 @@ func ServeUpdateHandlerV2(memStorage st.Storage) http.HandlerFunc {
 	}
 }
 
-func ServeUpdateHandler(memStorage st.Storage) http.HandlerFunc {
+func ServeUpdateHandler(storage st.Storage) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		metricType := chi.URLParam(r, "metricType")
@@ -66,7 +69,7 @@ func ServeUpdateHandler(memStorage st.Storage) http.HandlerFunc {
 		}
 		metricValue := chi.URLParam(r, "metricValue")
 
-		err := memStorage.Update(metricType, metricName, metricValue)
+		err := storage.Update(metricType, metricName, metricValue)
 
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -78,9 +81,9 @@ func ServeUpdateHandler(memStorage st.Storage) http.HandlerFunc {
 	}
 }
 
-func GetMetricHandlerV2(memStorage st.Storage) http.HandlerFunc {
+func GetMetricHandlerV2(storage st.Storage) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var metrics st.Metrics
+		var metrics st.Metric
 		var buf bytes.Buffer
 
 		if r.Header.Get("Content-Type") != "application/json" {
@@ -105,7 +108,7 @@ func GetMetricHandlerV2(memStorage st.Storage) http.HandlerFunc {
 			return
 		}
 
-		gotMetric, err := memStorage.GetV2(metrics)
+		gotMetric, err := storage.GetV2(metrics)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 
@@ -123,13 +126,13 @@ func GetMetricHandlerV2(memStorage st.Storage) http.HandlerFunc {
 	}
 }
 
-func GetMetricHandler(memStorage st.Storage) http.HandlerFunc {
+func GetMetricHandler(storage st.Storage) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		metricType := chi.URLParam(r, "metricType")
 		metricName := chi.URLParam(r, "metricName")
 
-		value, err := memStorage.Get(metricType, metricName)
+		value, err := storage.Get(metricType, metricName)
 		if err != nil {
 			w.WriteHeader(http.StatusNotFound)
 			_, _ = w.Write([]byte(err.Error()))
@@ -141,9 +144,9 @@ func GetMetricHandler(memStorage st.Storage) http.HandlerFunc {
 	}
 }
 
-func GetPageHandler(memStorage st.Storage) http.HandlerFunc {
+func GetPageHandler(storage st.Storage) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		data, err := memStorage.GetAll()
+		data, err := storage.GetAll()
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			_, _ = w.Write([]byte(err.Error()))
@@ -151,5 +154,24 @@ func GetPageHandler(memStorage st.Storage) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "text/html")
 		_, _ = w.Write(data)
+	}
+}
+
+func GetPing(dsn string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		db, err := sql.Open("pgx", dsn)
+		defer db.Close()
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(err.Error()))
+			return
+		}
+		err = db.Ping()
+		if err != nil {
+			log.Sugar.Warn("no database connection")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
 	}
 }

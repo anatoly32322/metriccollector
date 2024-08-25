@@ -20,23 +20,24 @@ func syncStoreMiddleware(memStorage st.Storage, storePath string) func(http.Hand
 	}
 }
 
-func MetricRouter(memStorage st.Storage, isSyncStore bool, storePath string) chi.Router {
+func MetricRouter(storage st.Storage, isSyncStore bool, storePath, dbHost string) chi.Router {
 	router := chi.NewRouter()
 	updateSubRouter := chi.NewRouter()
 
 	router.Use(middleware.Compress(5))
 
 	if isSyncStore {
-		storeMiddleware := syncStoreMiddleware(memStorage, storePath)
+		storeMiddleware := syncStoreMiddleware(storage, storePath)
 		updateSubRouter.Use(storeMiddleware)
 	}
-	updateSubRouter.Post("/{metricType}/{metricName}/{metricValue}", ServeUpdateHandler(memStorage))
-	updateSubRouter.Post("/", ServeUpdateHandlerV2(memStorage))
+	updateSubRouter.Post("/{metricType}/{metricName}/{metricValue}", ServeUpdateHandler(storage))
+	updateSubRouter.Post("/", ServeUpdateHandlerV2(storage))
 
 	router.Mount("/update", updateSubRouter)
-	router.Post("/value/", GetMetricHandlerV2(memStorage))
-	router.Get("/value/{metricType}/{metricName}", GetMetricHandler(memStorage))
-	router.Get("/", GetPageHandler(memStorage))
+	router.Post("/value/", GetMetricHandlerV2(storage))
+	router.Get("/value/{metricType}/{metricName}", GetMetricHandler(storage))
+	router.Get("/ping", GetPing(dbHost))
+	router.Get("/", GetPageHandler(storage))
 
 	return router
 }

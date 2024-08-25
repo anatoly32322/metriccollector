@@ -1,0 +1,248 @@
+package storage
+
+import (
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"github.com/anatoly32322/metriccollector/internal/logger"
+	"strconv"
+)
+
+var (
+	createTables = `
+		CREATE SCHEMA IF NOT EXISTS metric_collector;
+		CREATE TABLE IF NOT EXISTS metric_collector.gauge_metrics (
+		    metric_name varchar(32) UNIQUE,
+		    value double precision
+		);
+		CREATE TABLE IF NOT EXISTS metric_collector.counter_metrics (
+		    metric_name varchar(32) UNIQUE,
+		    delta integer
+		);
+	`
+	insertGaugeQuery = `
+		INSERT INTO metric_collector.gauge_metrics (metric_name, value)
+		VALUES ($1, $2)
+		ON CONFLICT (metric_name) 
+		DO UPDATE SET 
+		    value=EXCLUDED.value;
+	`
+	insertCounterQuery = `
+		INSERT INTO metric_collector.counter_metrics (metric_name, delta)
+		VALUES ($1, $2)
+		ON CONFLICT (metric_name)
+		DO UPDATE SET
+		    delta=counter_metrics.delta + EXCLUDED.delta;
+	`
+	selectGaugeQuery = `
+		SELECT value FROM metric_collector.gauge_metrics
+		WHERE metric_name = $1;
+	`
+	selectCounterQuery = `
+		SELECT delta FROM metric_collector.counter_metrics
+		WHERE metric_name = $1;
+    `
+	selectAllGaugeQuery = `
+		SELECT metric_name, value FROM metric_collector.gauge_metrics;
+	`
+	selectAllCounterQuery = `
+		SELECT metric_name, delta FROM metric_collector.counter_metrics;
+	`
+)
+
+type DBStorage struct {
+	db *sql.DB
+}
+
+func NewDBStorage(dsn string) (*DBStorage, error) {
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		return nil, err
+	}
+	err = initDB(db)
+	if err != nil {
+		return nil, err
+	}
+	return &DBStorage{db}, nil
+}
+
+func initDB(db *sql.DB) error {
+	_, err := db.Exec(createTables)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *DBStorage) Update(metricType, metricName, value string) error {
+	logger.Sugar.Infof("got metric: %s, %s, %s", metricType, metricName, value)
+	switch metricType {
+	case "gauge":
+		floatValue, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			logger.Sugar.Errorf("got error: %e", err)
+			return err
+		}
+		logger.Sugar.Infof("exec query with args: %s, %f", metricName, floatValue)
+		_, err = s.db.Exec(insertGaugeQuery, metricName, floatValue)
+		if err != nil {
+			logger.Sugar.Errorf("got error: %e", err)
+			return fmt.Errorf("got error during exec query: %e", err)
+		}
+	case "counter":
+		intValue, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			logger.Sugar.Errorf("got error: %e", err)
+			return err
+		}
+		_, err = s.db.Exec(insertCounterQuery, metricName, intValue)
+		if err != nil {
+			logger.Sugar.Errorf("got error: %e", err)
+			return fmt.Errorf("got error during exec query: %e", err)
+		}
+	default:
+		return fmt.Errorf("unknown metric type: %s", metricType)
+	}
+	return nil
+}
+
+func (s *DBStorage) UpdateV2(metric Metric) (m *Metric, err error) {
+	logger.Sugar.Infof("got metric: %s, %s", metric.MType, metric.ID)
+	switch metric.MType {
+	case "gauge":
+		if metric.Value == nil {
+			err = fmt.Errorf("metric value is nil")
+			logger.Sugar.Errorf("got error: %e", err)
+			return
+		}
+		logger.Sugar.Infof("exec query with args: %s, %d", metric.ID, metric.Value)
+		_, err = s.db.Exec(insertGaugeQuery, metric.ID, metric.Value)
+		if err != nil {
+			logger.Sugar.Errorf("got error: %e", err)
+			return nil, fmt.Errorf("got error during exec query: %e", err)
+		}
+		m, err = s.GetV2(metric)
+		if err != nil {
+			logger.Sugar.Errorf("got error: %e", err)
+			return
+		}
+		return
+	case "counter":
+		if metric.Delta == nil {
+			err = fmt.Errorf("metric delta is nil")
+			logger.Sugar.Errorf("got error: %e", err)
+			return
+		}
+		_, err = s.db.Exec(insertCounterQuery, metric.ID, metric.Delta)
+		if err != nil {
+			logger.Sugar.Errorf("got error: %e", err)
+			return nil, fmt.Errorf("got error during exec query: %e", err)
+		}
+		m, err = s.GetV2(metric)
+		if err != nil {
+			logger.Sugar.Errorf("got error: %e", err)
+			return
+		}
+		return
+	default:
+		return nil, fmt.Errorf("unknown metric type: %s", metric.MType)
+	}
+}
+
+func (s *DBStorage) Get(metricType, metricName string) (res string, err error) {
+	switch metricType {
+	case "gauge":
+		logger.Sugar.Infof("exec query with arg: %s", metricName)
+		row := s.db.QueryRow(selectGaugeQuery, metricName)
+
+		if err = row.Scan(&res); err != nil {
+			logger.Sugar.Errorf("got error: %e", err)
+			return
+		}
+		return
+	case "counter":
+		logger.Sugar.Infof("exec query with arg: %s", metricName)
+		row := s.db.QueryRow(selectCounterQuery, metricName)
+
+		if err = row.Scan(&res); err != nil {
+			logger.Sugar.Errorf("got error: %e", err)
+			return
+		}
+		return
+	}
+	return "", fmt.Errorf("unknown metric type: %s", metricType)
+}
+
+func (s *DBStorage) GetV2(metric Metric) (res *Metric, err error) {
+	res = &metric
+
+	switch metric.MType {
+	case "gauge":
+		logger.Sugar.Infof("exec query with arg: %s", metric.ID)
+		row := s.db.QueryRow(selectGaugeQuery, metric.ID)
+
+		var val float64
+		if err = row.Scan(&val); err != nil {
+			logger.Sugar.Errorf("got error: %e", err)
+			return
+		}
+		res.Value = &val
+		return
+	case "counter":
+		logger.Sugar.Infof("exec query with arg: %s", metric.ID)
+		row := s.db.QueryRow(selectCounterQuery, metric.ID)
+
+		var val float64
+		if err = row.Scan(&val); err != nil {
+			logger.Sugar.Errorf("got error: %e", err)
+			return
+		}
+		res.Value = &val
+		return
+	}
+	return res, fmt.Errorf("unknown metric type: %s", metric.MType)
+}
+
+func (s *DBStorage) GetAll() ([]byte, error) {
+	var metric Metric
+	type resultStorage struct {
+		GaugeMetrics   map[string]float64 `json:"gauge_metrics"`
+		CounterMetrics map[string]int64   `json:"counter_metrics"`
+	}
+	results := &resultStorage{
+		GaugeMetrics:   make(map[string]float64),
+		CounterMetrics: make(map[string]int64),
+	}
+	rows, err := s.db.Query(selectAllGaugeQuery)
+	if err != nil {
+		return nil, fmt.Errorf("failed exec query: %w", err)
+	}
+	for rows.Next() {
+		err = rows.Scan(&metric.ID, &metric.Value)
+		if err != nil {
+			return nil, fmt.Errorf("failed scan row: %w", err)
+		}
+		results.GaugeMetrics[metric.ID] = *metric.Value
+	}
+
+	rows, err = s.db.Query(selectAllCounterQuery)
+	if err != nil {
+		return nil, fmt.Errorf("failed exec query: %w", err)
+	}
+	for rows.Next() {
+		err = rows.Scan(&metric.ID, &metric.Delta)
+		if err != nil {
+			return nil, fmt.Errorf("failed scan row: %w", err)
+		}
+		results.CounterMetrics[metric.ID] = *metric.Delta
+	}
+	return json.Marshal(results)
+}
+
+func (s *DBStorage) Save(fname string) error {
+	panic("save not implemented")
+}
+
+func (s *DBStorage) Load(fname string) error {
+	panic("load not implemented")
+}
