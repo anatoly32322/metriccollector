@@ -55,7 +55,7 @@ func main() {
 	flag.Int64Var(&cfg.StoreInterval, "i", 10, "interval to store metrics")
 	flag.StringVar(&cfg.FileStoragePath, "f", "/tmp/metrics-db.json", "path to file storage path")
 	flag.BoolVar(&cfg.Restore, "r", true, "restore metrics from storage")
-	flag.StringVar(&cfg.DBHost, "d", "host=localhost user=username password=userpassword dbname=dbname sslmode=disable", "database dsn")
+	flag.StringVar(&cfg.DBHost, "d", "", "database dsn")
 
 	flag.Parse()
 
@@ -95,38 +95,46 @@ func main() {
 	}
 }
 
-func run(cfg Config) error {
-	memStorage := st.NewMemStorage()
-	if cfg.Restore {
-		err := memStorage.Load(cfg.FileStoragePath)
-		if err != nil {
-			return err
-		}
-	}
-
-	defer func(memStorage *st.MemStorage, fname string) {
-		err := memStorage.Save(fname)
-		if err != nil {
-			log.Sugar.Error(err)
-		}
-	}(memStorage, cfg.FileStoragePath)
-
+func run(cfg Config) (err error) {
 	var router chi.Router
+	var storage st.Storage
 
-	if cfg.StoreInterval != 0 {
-		go func() {
-			var err error
-			for {
-				time.Sleep(time.Duration(cfg.StoreInterval) * time.Second)
-				err = memStorage.Save(cfg.FileStoragePath)
-				if err != nil {
-					log.Sugar.Error(err)
-				}
+	if cfg.DBHost == "" {
+		storage = st.NewMemStorage()
+		if cfg.Restore {
+			err = storage.Load(cfg.FileStoragePath)
+			if err != nil {
+				return
 			}
-		}()
-		router = apihandlers.MetricRouter(memStorage, false, "", cfg.DBHost)
+		}
+
+		defer func(memStorage st.Storage, fname string) {
+			err := memStorage.Save(fname)
+			if err != nil {
+				log.Sugar.Error(err)
+			}
+		}(storage, cfg.FileStoragePath)
+
+		if cfg.StoreInterval != 0 {
+			go func() {
+				for {
+					time.Sleep(time.Duration(cfg.StoreInterval) * time.Second)
+					err = storage.Save(cfg.FileStoragePath)
+					if err != nil {
+						log.Sugar.Error(err)
+					}
+				}
+			}()
+			router = apihandlers.MetricRouter(storage, false, "", cfg.DBHost)
+		} else {
+			router = apihandlers.MetricRouter(storage, true, cfg.FileStoragePath, cfg.DBHost)
+		}
 	} else {
-		router = apihandlers.MetricRouter(memStorage, true, cfg.FileStoragePath, cfg.DBHost)
+		storage, err = st.NewDBStorage(cfg.DBHost)
+		if err != nil {
+			return
+		}
+		router = apihandlers.MetricRouter(storage, false, "", cfg.DBHost)
 	}
 
 	return http.ListenAndServe(cfg.Host, log.WithLogging(gzipMiddleware(router)))
