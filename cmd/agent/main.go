@@ -40,40 +40,32 @@ func run(cfg Config) {
 	var intervalCounter int64
 	var pollCounter int64
 	var gaugeMetrics map[string]float64
+	var batch []Metrics
 	for {
 		if intervalCounter >= reportInterval {
-			log.Info("sending metrics")
+			log.Info("sending metrics...")
 			gaugeMetrics = collectMetrics()
 			client := resty.New()
 			for metricName, metricValue := range gaugeMetrics {
-				req, err := json.Marshal(&Metrics{
+				batch = append(batch, Metrics{
 					ID:    metricName,
 					MType: "gauge",
 					Value: &metricValue,
 				})
-				if err != nil {
-					log.Error(err)
-				}
-				_, err = client.R().
-					SetHeader("Content-Type", "application/json").
-					SetBody(req).
-					Post(fmt.Sprintf("http://%s/update/", cfg.Host))
-				if err != nil {
-					log.Error(err)
-				}
 			}
-			req, err := json.Marshal(&Metrics{
+			batch = append(batch, Metrics{
 				ID:    "PollCount",
 				MType: "counter",
 				Delta: &pollCounter,
 			})
+			req, err := json.Marshal(batch)
 			if err != nil {
 				log.Error(err)
 			}
 			_, err = client.R().
 				SetHeader("Content-Type", "application/json").
 				SetBody(req).
-				Post(fmt.Sprintf("http://%s/update/", cfg.Host))
+				Post(fmt.Sprintf("http://%s/updates/", cfg.Host))
 			if err != nil {
 				log.Error(err)
 			} else {

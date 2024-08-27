@@ -34,6 +34,7 @@ func MetricRouter(storage st.Storage, isSyncStore bool, storePath, dbHost string
 	updateSubRouter.Post("/", ServeUpdateHandlerV2(storage))
 
 	router.Mount("/update", updateSubRouter)
+	router.Post("/updates/", ServeUpdatesHandler(storage))
 	router.Post("/value/", GetMetricHandlerV2(storage))
 	router.Get("/value/{metricType}/{metricName}", GetMetricHandler(storage))
 	router.Get("/ping", GetPing(dbHost))

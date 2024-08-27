@@ -149,6 +149,50 @@ func (s *DBStorage) UpdateV2(metric Metric) (m *Metric, err error) {
 	}
 }
 
+func (s *DBStorage) UpdateBatch(metrics []Metric) error {
+	logger.Sugar.Infof("got metrics: %v", metrics)
+	tx, err := s.db.Begin()
+	if err != nil {
+		logger.Sugar.Errorf("failed init transaction: %s", err)
+		return fmt.Errorf("failed init transaction: %w", err)
+	}
+	for i := 0; i < len(metrics); i++ {
+		switch metrics[i].MType {
+		case "gauge":
+			if metrics[i].Value == nil {
+				err = fmt.Errorf("metric value is nil")
+				logger.Sugar.Errorf("got error: %e", err)
+				tx.Rollback()
+				return err
+			}
+			logger.Sugar.Infof("exec query with args: %s, %d", metrics[i].ID, metrics[i].Value)
+			_, err = tx.Exec(insertGaugeQuery, metrics[i].ID, metrics[i].Value)
+			if err != nil {
+				logger.Sugar.Errorf("got error: %e", err)
+				tx.Rollback()
+				return fmt.Errorf("got error during exec query: %e", err)
+			}
+		case "counter":
+			if metrics[i].Delta == nil {
+				err = fmt.Errorf("metric delta is nil")
+				logger.Sugar.Errorf("got error: %e", err)
+				tx.Rollback()
+				return err
+			}
+			_, err = s.db.Exec(insertCounterQuery, metrics[i].ID, metrics[i].Delta)
+			if err != nil {
+				logger.Sugar.Errorf("got error: %e", err)
+				tx.Rollback()
+				return fmt.Errorf("got error during exec query: %e", err)
+			}
+		default:
+			tx.Rollback()
+			return fmt.Errorf("unknown metric type: %s", metrics[i].MType)
+		}
+	}
+	return tx.Commit()
+}
+
 func (s *DBStorage) Get(metricType, metricName string) (res string, err error) {
 	switch metricType {
 	case "gauge":

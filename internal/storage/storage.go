@@ -74,6 +74,32 @@ func (s *MemStorage) UpdateV2(metric Metric) (*Metric, error) {
 	return &metric, nil
 }
 
+func (s *MemStorage) UpdateBatch(metrics []Metric) error {
+	s.mx.Lock()
+	defer s.mx.Unlock()
+	for i := 0; i < len(metrics); i++ {
+		if !s.AcceptedMetricType[metrics[i].MType] {
+			return fmt.Errorf("metric type %s not accepted", metrics[i].MType)
+		}
+		switch metrics[i].MType {
+		case "gauge":
+			if metrics[i].Value == nil {
+				return fmt.Errorf("metric value is nil")
+			}
+			s.GaugeMetrics[metrics[i].ID] = *metrics[i].Value
+		case "counter":
+			if metrics[i].Delta == nil {
+				return fmt.Errorf("metric delta is nil")
+			}
+			s.CounterMetrics[metrics[i].ID] += *metrics[i].Delta
+			*metrics[i].Delta = s.CounterMetrics[metrics[i].ID]
+		default:
+			return fmt.Errorf("unknown metric type: %s", metrics[i].MType)
+		}
+	}
+	return nil
+}
+
 func (s *MemStorage) Get(metricType, metricName string) (string, error) {
 	s.mx.Lock()
 	defer s.mx.Unlock()

@@ -11,6 +11,41 @@ import (
 	"net/http"
 )
 
+func ServeUpdatesHandler(storage st.Storage) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var metrics []st.Metric
+		var buf bytes.Buffer
+
+		if r.Header.Get("Content-Type") != "application/json" {
+			log.Sugar.Error("request body is not JSON")
+			http.Error(w, "Request body is not JSON", http.StatusNotFound)
+			return
+		}
+
+		_, err := buf.ReadFrom(r.Body)
+		if err != nil {
+			log.Sugar.Errorf("failed reading body: %s", err.Error())
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+
+		if err = json.Unmarshal(buf.Bytes(), &metrics); err != nil {
+			log.Sugar.Errorf("failed unmarshal bode: %s", err.Error())
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+
+		err = storage.UpdateBatch(metrics)
+		if err != nil {
+			log.Sugar.Errorf("failed update batch: %s", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}
+}
+
 func ServeUpdateHandlerV2(storage st.Storage) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var metrics st.Metric
@@ -94,30 +129,25 @@ func GetMetricHandlerV2(storage st.Storage) http.HandlerFunc {
 		_, err := buf.ReadFrom(r.Body)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
-
 			return
 		}
 		if err = json.Unmarshal(buf.Bytes(), &metrics); err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
-
 			return
 		}
 		if metrics.ID == "" {
 			http.Error(w, "metric name not specified", http.StatusNotFound)
-
 			return
 		}
 
 		gotMetric, err := storage.GetV2(metrics)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
-
 			return
 		}
 		resp, err := json.Marshal(gotMetric)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -136,7 +166,6 @@ func GetMetricHandler(storage st.Storage) http.HandlerFunc {
 		if err != nil {
 			w.WriteHeader(http.StatusNotFound)
 			_, _ = w.Write([]byte(err.Error()))
-
 			return
 		}
 		w.WriteHeader(http.StatusOK)
