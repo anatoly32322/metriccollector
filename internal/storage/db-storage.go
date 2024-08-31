@@ -83,11 +83,11 @@ func (s *DBStorage) Update(metricType, metricName, value string) error {
 			logger.Sugar.Errorf("got error: %e", err)
 			return err
 		}
-		logger.Sugar.Infof("exec query with args: %s, %f", metricName, floatValue)
+		logger.Sugar.Infof("exec update query with args: %s, %f", metricName, floatValue)
 		_, err = s.db.Exec(insertGaugeQuery, metricName, floatValue)
 		if err != nil {
 			logger.Sugar.Errorf("got error: %e", err)
-			return fmt.Errorf("got error during exec query: %e", err)
+			return fmt.Errorf("got error during exec update query: %e", err)
 		}
 	case "counter":
 		intValue, err := strconv.ParseInt(value, 10, 64)
@@ -98,7 +98,7 @@ func (s *DBStorage) Update(metricType, metricName, value string) error {
 		_, err = s.db.Exec(insertCounterQuery, metricName, intValue)
 		if err != nil {
 			logger.Sugar.Errorf("got error: %e", err)
-			return fmt.Errorf("got error during exec query: %e", err)
+			return fmt.Errorf("got error during exec update query: %e", err)
 		}
 	default:
 		return fmt.Errorf("unknown metric type: %s", metricType)
@@ -115,11 +115,11 @@ func (s *DBStorage) UpdateV2(metric Metric) (m *Metric, err error) {
 			logger.Sugar.Errorf("got error: %e", err)
 			return
 		}
-		logger.Sugar.Infof("exec query with args: %s, %d", metric.ID, metric.Value)
+		logger.Sugar.Infof("exec update v2 query with args: %s, %d", metric.ID, metric.Value)
 		_, err = s.db.Exec(insertGaugeQuery, metric.ID, metric.Value)
 		if err != nil {
 			logger.Sugar.Errorf("got error: %e", err)
-			return nil, fmt.Errorf("got error during exec query: %e", err)
+			return nil, fmt.Errorf("got error during exec update v2 query: %e", err)
 		}
 		m, err = s.GetV2(metric)
 		if err != nil {
@@ -136,7 +136,7 @@ func (s *DBStorage) UpdateV2(metric Metric) (m *Metric, err error) {
 		_, err = s.db.Exec(insertCounterQuery, metric.ID, metric.Delta)
 		if err != nil {
 			logger.Sugar.Errorf("got error: %e", err)
-			return nil, fmt.Errorf("got error during exec query: %e", err)
+			return nil, fmt.Errorf("got error during exec update v2 query: %e", err)
 		}
 		m, err = s.GetV2(metric)
 		if err != nil {
@@ -165,12 +165,12 @@ func (s *DBStorage) UpdateBatch(metrics []Metric) error {
 				tx.Rollback()
 				return err
 			}
-			logger.Sugar.Infof("exec query with args: %s, %d", metrics[i].ID, metrics[i].Value)
+			logger.Sugar.Infof("exec update batch query with args: %s, %d", metrics[i].ID, metrics[i].Value)
 			_, err = tx.Exec(insertGaugeQuery, metrics[i].ID, metrics[i].Value)
 			if err != nil {
 				logger.Sugar.Errorf("got error: %e", err)
 				tx.Rollback()
-				return fmt.Errorf("got error during exec query: %e", err)
+				return fmt.Errorf("got error during exec update batch query: %e", err)
 			}
 		case "counter":
 			if metrics[i].Delta == nil {
@@ -183,7 +183,7 @@ func (s *DBStorage) UpdateBatch(metrics []Metric) error {
 			if err != nil {
 				logger.Sugar.Errorf("got error: %e", err)
 				tx.Rollback()
-				return fmt.Errorf("got error during exec query: %e", err)
+				return fmt.Errorf("got error during exec update batch query: %e", err)
 			}
 		default:
 			tx.Rollback()
@@ -196,7 +196,7 @@ func (s *DBStorage) UpdateBatch(metrics []Metric) error {
 func (s *DBStorage) Get(metricType, metricName string) (res string, err error) {
 	switch metricType {
 	case "gauge":
-		logger.Sugar.Infof("exec query with arg: %s", metricName)
+		logger.Sugar.Infof("exec get query with arg: %s", metricName)
 		row := s.db.QueryRow(selectGaugeQuery, metricName)
 
 		if err = row.Scan(&res); err != nil {
@@ -205,7 +205,7 @@ func (s *DBStorage) Get(metricType, metricName string) (res string, err error) {
 		}
 		return
 	case "counter":
-		logger.Sugar.Infof("exec query with arg: %s", metricName)
+		logger.Sugar.Infof("exec get query with arg: %s", metricName)
 		row := s.db.QueryRow(selectCounterQuery, metricName)
 
 		if err = row.Scan(&res); err != nil {
@@ -222,7 +222,7 @@ func (s *DBStorage) GetV2(metric Metric) (res *Metric, err error) {
 
 	switch metric.MType {
 	case "gauge":
-		logger.Sugar.Infof("exec query with arg: %s", metric.ID)
+		logger.Sugar.Infof("exec get v2 query with arg: %s", metric.ID)
 		row := s.db.QueryRow(selectGaugeQuery, metric.ID)
 
 		var val float64
@@ -233,7 +233,7 @@ func (s *DBStorage) GetV2(metric Metric) (res *Metric, err error) {
 		res.Value = &val
 		return
 	case "counter":
-		logger.Sugar.Infof("exec query with arg: %s", metric.ID)
+		logger.Sugar.Infof("exec get v2 query with arg: %s", metric.ID)
 		row := s.db.QueryRow(selectCounterQuery, metric.ID)
 
 		var val float64
@@ -257,9 +257,10 @@ func (s *DBStorage) GetAll() ([]byte, error) {
 		GaugeMetrics:   make(map[string]float64),
 		CounterMetrics: make(map[string]int64),
 	}
+	logger.Sugar.Info("exec get all query")
 	rows, err := s.db.Query(selectAllGaugeQuery)
 	if err != nil {
-		return nil, fmt.Errorf("failed exec query: %w", err)
+		return nil, fmt.Errorf("failed exec get all query: %w", err)
 	}
 	for rows.Next() {
 		err = rows.Scan(&metric.ID, &metric.Value)
@@ -271,7 +272,7 @@ func (s *DBStorage) GetAll() ([]byte, error) {
 
 	rows, err = s.db.Query(selectAllCounterQuery)
 	if err != nil {
-		return nil, fmt.Errorf("failed exec query: %w", err)
+		return nil, fmt.Errorf("failed exec get all query: %w", err)
 	}
 	for rows.Next() {
 		err = rows.Scan(&metric.ID, &metric.Delta)
