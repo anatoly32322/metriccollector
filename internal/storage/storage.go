@@ -7,25 +7,8 @@ import (
 	"sync"
 )
 
-type Metrics struct {
-	ID    string   `json:"id"`              // имя метрики
-	MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
-	Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
-	Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
-}
-
-type Storage interface {
-	Update(string, string, string) error
-	UpdateV2(Metrics) (*Metrics, error)
-	Get(string, string) (string, error)
-	GetV2(Metrics) (*Metrics, error)
-	GetAll() ([]byte, error)
-	Save(string) error
-	Load(string) error
-}
-
 type MemStorage struct {
-	mx                 sync.Mutex
+	mx                 *sync.Mutex
 	GaugeMetrics       map[string]float64 `json:"gauge_metrics"`
 	CounterMetrics     map[string]int64   `json:"counter_metrics"`
 	AcceptedMetricType map[string]bool    `json:"-"`
@@ -33,6 +16,7 @@ type MemStorage struct {
 
 func NewMemStorage() *MemStorage {
 	return &MemStorage{
+		mx:             &sync.Mutex{},
 		GaugeMetrics:   make(map[string]float64),
 		CounterMetrics: make(map[string]int64),
 		AcceptedMetricType: map[string]bool{
@@ -67,28 +51,54 @@ func (s *MemStorage) Update(metricType, metricName, value string) error {
 	return nil
 }
 
-func (s *MemStorage) UpdateV2(metric Metrics) (*Metrics, error) {
+func (s *MemStorage) UpdateV2(metric Metric) error {
 	s.mx.Lock()
 	defer s.mx.Unlock()
 	if !s.AcceptedMetricType[metric.MType] {
-		return nil, fmt.Errorf("metric type %s not accepted", metric.MType)
+		return fmt.Errorf("metric type %s not accepted", metric.MType)
 	}
 	switch metric.MType {
 	case "gauge":
 		if metric.Value == nil {
-			return nil, fmt.Errorf("metric value is nil")
+			return fmt.Errorf("metric value is nil")
 		}
 		s.GaugeMetrics[metric.ID] = *metric.Value
 	case "counter":
 		if metric.Delta == nil {
-			return nil, fmt.Errorf("metric delta is nil")
+			return fmt.Errorf("metric delta is nil")
 		}
 		s.CounterMetrics[metric.ID] += *metric.Delta
 		*metric.Delta = s.CounterMetrics[metric.ID]
 	default:
-		return nil, fmt.Errorf("unknown metric type: %s", metric.MType)
+		return fmt.Errorf("unknown metric type: %s", metric.MType)
 	}
-	return &metric, nil
+	return nil
+}
+
+func (s *MemStorage) UpdateBatch(metrics []Metric) error {
+	s.mx.Lock()
+	defer s.mx.Unlock()
+	for i := 0; i < len(metrics); i++ {
+		if !s.AcceptedMetricType[metrics[i].MType] {
+			return fmt.Errorf("metric type %s not accepted", metrics[i].MType)
+		}
+		switch metrics[i].MType {
+		case "gauge":
+			if metrics[i].Value == nil {
+				return fmt.Errorf("metric value is nil")
+			}
+			s.GaugeMetrics[metrics[i].ID] = *metrics[i].Value
+		case "counter":
+			if metrics[i].Delta == nil {
+				return fmt.Errorf("metric delta is nil")
+			}
+			s.CounterMetrics[metrics[i].ID] += *metrics[i].Delta
+			*metrics[i].Delta = s.CounterMetrics[metrics[i].ID]
+		default:
+			return fmt.Errorf("unknown metric type: %s", metrics[i].MType)
+		}
+	}
+	return nil
 }
 
 func (s *MemStorage) Get(metricType, metricName string) (string, error) {
@@ -109,7 +119,7 @@ func (s *MemStorage) Get(metricType, metricName string) (string, error) {
 	return "", fmt.Errorf("unknown metric type: %s", metricType)
 }
 
-func (s *MemStorage) GetV2(metrics Metrics) (*Metrics, error) {
+func (s *MemStorage) GetV2(metrics Metric) (*Metric, error) {
 	s.mx.Lock()
 	defer s.mx.Unlock()
 	switch metrics.MType {
