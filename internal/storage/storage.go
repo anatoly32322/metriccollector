@@ -8,7 +8,7 @@ import (
 )
 
 type MemStorage struct {
-	mx                 sync.Mutex
+	mx                 *sync.Mutex
 	GaugeMetrics       map[string]float64 `json:"gauge_metrics"`
 	CounterMetrics     map[string]int64   `json:"counter_metrics"`
 	AcceptedMetricType map[string]bool    `json:"-"`
@@ -16,6 +16,7 @@ type MemStorage struct {
 
 func NewMemStorage() *MemStorage {
 	return &MemStorage{
+		mx:             &sync.Mutex{},
 		GaugeMetrics:   make(map[string]float64),
 		CounterMetrics: make(map[string]int64),
 		AcceptedMetricType: map[string]bool{
@@ -50,28 +51,28 @@ func (s *MemStorage) Update(metricType, metricName, value string) error {
 	return nil
 }
 
-func (s *MemStorage) UpdateV2(metric Metric) (*Metric, error) {
+func (s *MemStorage) UpdateV2(metric Metric) error {
 	s.mx.Lock()
 	defer s.mx.Unlock()
 	if !s.AcceptedMetricType[metric.MType] {
-		return nil, fmt.Errorf("metric type %s not accepted", metric.MType)
+		return fmt.Errorf("metric type %s not accepted", metric.MType)
 	}
 	switch metric.MType {
 	case "gauge":
 		if metric.Value == nil {
-			return nil, fmt.Errorf("metric value is nil")
+			return fmt.Errorf("metric value is nil")
 		}
 		s.GaugeMetrics[metric.ID] = *metric.Value
 	case "counter":
 		if metric.Delta == nil {
-			return nil, fmt.Errorf("metric delta is nil")
+			return fmt.Errorf("metric delta is nil")
 		}
 		s.CounterMetrics[metric.ID] += *metric.Delta
 		*metric.Delta = s.CounterMetrics[metric.ID]
 	default:
-		return nil, fmt.Errorf("unknown metric type: %s", metric.MType)
+		return fmt.Errorf("unknown metric type: %s", metric.MType)
 	}
-	return &metric, nil
+	return nil
 }
 
 func (s *MemStorage) UpdateBatch(metrics []Metric) error {

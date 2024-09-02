@@ -3,9 +3,11 @@ package storage
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/anatoly32322/metriccollector/internal/logger"
 	"strconv"
+	"sync"
 )
 
 var (
@@ -17,7 +19,7 @@ var (
 		);
 		CREATE TABLE IF NOT EXISTS metric_collector.counter_metrics (
 		    metric_name varchar(32) UNIQUE,
-		    delta integer
+		    delta bigint
 		);
 	`
 	insertGaugeQuery = `
@@ -51,6 +53,7 @@ var (
 )
 
 type DBStorage struct {
+	mx *sync.Mutex
 	db *sql.DB
 }
 
@@ -63,7 +66,7 @@ func NewDBStorage(dsn string) (*DBStorage, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &DBStorage{db}, nil
+	return &DBStorage{mx: &sync.Mutex{}, db: db}, nil
 }
 
 func initDB(db *sql.DB) error {
@@ -75,6 +78,9 @@ func initDB(db *sql.DB) error {
 }
 
 func (s *DBStorage) Update(metricType, metricName, value string) error {
+	s.mx.Lock()
+	defer s.mx.Unlock()
+
 	logger.Sugar.Infof("got metric: %s, %s, %s", metricType, metricName, value)
 	switch metricType {
 	case "gauge":
@@ -106,7 +112,10 @@ func (s *DBStorage) Update(metricType, metricName, value string) error {
 	return nil
 }
 
-func (s *DBStorage) UpdateV2(metric Metric) (m *Metric, err error) {
+func (s *DBStorage) UpdateV2(metric Metric) (err error) {
+	s.mx.Lock()
+	defer s.mx.Unlock()
+
 	logger.Sugar.Infof("got metric: %s, %s", metric.MType, metric.ID)
 	switch metric.MType {
 	case "gauge":
@@ -119,12 +128,7 @@ func (s *DBStorage) UpdateV2(metric Metric) (m *Metric, err error) {
 		_, err = s.db.Exec(insertGaugeQuery, metric.ID, metric.Value)
 		if err != nil {
 			logger.Sugar.Errorf("got error: %e", err)
-			return nil, fmt.Errorf("got error during exec update v2 query: %e", err)
-		}
-		m, err = s.GetV2(metric)
-		if err != nil {
-			logger.Sugar.Errorf("got error: %e", err)
-			return
+			return fmt.Errorf("got error during exec update v2 query: %e", err)
 		}
 		return
 	case "counter":
@@ -136,20 +140,18 @@ func (s *DBStorage) UpdateV2(metric Metric) (m *Metric, err error) {
 		_, err = s.db.Exec(insertCounterQuery, metric.ID, metric.Delta)
 		if err != nil {
 			logger.Sugar.Errorf("got error: %e", err)
-			return nil, fmt.Errorf("got error during exec update v2 query: %e", err)
-		}
-		m, err = s.GetV2(metric)
-		if err != nil {
-			logger.Sugar.Errorf("got error: %e", err)
-			return
+			return fmt.Errorf("got error during exec update v2 query: %e", err)
 		}
 		return
 	default:
-		return nil, fmt.Errorf("unknown metric type: %s", metric.MType)
+		return fmt.Errorf("unknown metric type: %s", metric.MType)
 	}
 }
 
 func (s *DBStorage) UpdateBatch(metrics []Metric) error {
+	s.mx.Lock()
+	defer s.mx.Unlock()
+
 	logger.Sugar.Infof("got metrics: %v", metrics)
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -179,6 +181,7 @@ func (s *DBStorage) UpdateBatch(metrics []Metric) error {
 				tx.Rollback()
 				return err
 			}
+			logger.Sugar.Infof("exec update batch query with args: %s, %d", metrics[i].ID, metrics[i].Value)
 			_, err = s.db.Exec(insertCounterQuery, metrics[i].ID, metrics[i].Delta)
 			if err != nil {
 				logger.Sugar.Errorf("got error: %e", err)
@@ -194,12 +197,15 @@ func (s *DBStorage) UpdateBatch(metrics []Metric) error {
 }
 
 func (s *DBStorage) Get(metricType, metricName string) (res string, err error) {
+	s.mx.Lock()
+	defer s.mx.Unlock()
+
 	switch metricType {
 	case "gauge":
 		logger.Sugar.Infof("exec get query with arg: %s", metricName)
 		row := s.db.QueryRow(selectGaugeQuery, metricName)
 
-		if err = row.Scan(&res); err != nil {
+		if err = row.Scan(&res); err != nil && !errors.Is(err, sql.ErrNoRows) {
 			logger.Sugar.Errorf("got error: %e", err)
 			return
 		}
@@ -208,7 +214,7 @@ func (s *DBStorage) Get(metricType, metricName string) (res string, err error) {
 		logger.Sugar.Infof("exec get query with arg: %s", metricName)
 		row := s.db.QueryRow(selectCounterQuery, metricName)
 
-		if err = row.Scan(&res); err != nil {
+		if err = row.Scan(&res); err != nil && !errors.Is(err, sql.ErrNoRows) {
 			logger.Sugar.Errorf("got error: %e", err)
 			return
 		}
@@ -218,6 +224,9 @@ func (s *DBStorage) Get(metricType, metricName string) (res string, err error) {
 }
 
 func (s *DBStorage) GetV2(metric Metric) (res *Metric, err error) {
+	s.mx.Lock()
+	defer s.mx.Unlock()
+
 	res = &metric
 
 	switch metric.MType {
@@ -226,7 +235,7 @@ func (s *DBStorage) GetV2(metric Metric) (res *Metric, err error) {
 		row := s.db.QueryRow(selectGaugeQuery, metric.ID)
 
 		var val float64
-		if err = row.Scan(&val); err != nil {
+		if err = row.Scan(&val); err != nil && !errors.Is(err, sql.ErrNoRows) {
 			logger.Sugar.Errorf("got error: %e", err)
 			return
 		}
@@ -236,18 +245,21 @@ func (s *DBStorage) GetV2(metric Metric) (res *Metric, err error) {
 		logger.Sugar.Infof("exec get v2 query with arg: %s", metric.ID)
 		row := s.db.QueryRow(selectCounterQuery, metric.ID)
 
-		var val float64
-		if err = row.Scan(&val); err != nil {
+		var val int64
+		if err = row.Scan(&val); err != nil && !errors.Is(err, sql.ErrNoRows) {
 			logger.Sugar.Errorf("got error: %e", err)
 			return
 		}
-		res.Value = &val
+		res.Delta = &val
 		return
 	}
 	return res, fmt.Errorf("unknown metric type: %s", metric.MType)
 }
 
 func (s *DBStorage) GetAll() ([]byte, error) {
+	s.mx.Lock()
+	defer s.mx.Unlock()
+
 	var metric Metric
 	type resultStorage struct {
 		GaugeMetrics   map[string]float64 `json:"gauge_metrics"`
@@ -259,7 +271,10 @@ func (s *DBStorage) GetAll() ([]byte, error) {
 	}
 	logger.Sugar.Info("exec get all query")
 	rows, err := s.db.Query(selectAllGaugeQuery)
-	if err != nil {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("failed exec get all query: %w", err)
+	}
+	if rows.Err() != nil {
 		return nil, fmt.Errorf("failed exec get all query: %w", err)
 	}
 	for rows.Next() {
@@ -271,7 +286,10 @@ func (s *DBStorage) GetAll() ([]byte, error) {
 	}
 
 	rows, err = s.db.Query(selectAllCounterQuery)
-	if err != nil {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("failed exec get all query: %w", err)
+	}
+	if rows.Err() != nil {
 		return nil, fmt.Errorf("failed exec get all query: %w", err)
 	}
 	for rows.Next() {

@@ -73,14 +73,19 @@ func ServeUpdateHandlerV2(storage st.Storage) http.HandlerFunc {
 			return
 		}
 
-		computedMetrics, err := storage.UpdateV2(metrics)
-
+		err = storage.UpdateV2(metrics)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			_, _ = w.Write([]byte(err.Error()))
-
 			return
 		}
+		computedMetrics, err := storage.GetV2(metrics)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(err.Error()))
+			return
+		}
+
 		resp, err := json.Marshal(computedMetrics)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -189,7 +194,12 @@ func GetPageHandler(storage st.Storage) http.HandlerFunc {
 func GetPing(dsn string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		db, err := sql.Open("pgx", dsn)
-		defer db.Close()
+		defer func(db *sql.DB) {
+			err := db.Close()
+			if err != nil {
+				log.Sugar.Errorf("failed close db connection: %e", err)
+			}
+		}(db)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = w.Write([]byte(err.Error()))
