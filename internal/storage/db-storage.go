@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/anatoly32322/metriccollector/internal/logger"
+	"github.com/anatoly32322/metriccollector/internal/retry"
 	"strconv"
 	"sync"
 )
@@ -62,7 +63,18 @@ func NewDBStorage(dsn string) (*DBStorage, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = initDB(db)
+
+	connect := func() error {
+		err = initDB(db)
+		return err
+	}
+
+	_, err = retry.Retry(
+		connect,
+		[]interface{}{},
+		3, 1, 5,
+	)
+
 	if err != nil {
 		return nil, err
 	}
